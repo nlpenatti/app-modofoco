@@ -32,7 +32,7 @@ export function AlertaDistraicao({ aoFechar }: Props): React.JSX.Element {
           </span>
           <div className="min-w-0 flex-1">
             <h2 id="alerta-dist-titulo" className="font-display text-lg font-semibold text-texto">
-              Voltemos ao foco
+              Voltemos ao foco!
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-texto-mudo">
               Parece que o rumo saiu um pouco do estudo. Sem julgamento — respira e retoma o que você

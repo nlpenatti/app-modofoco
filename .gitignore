@@ -1,15 +1,8 @@
-# Dependências e builds comuns
-node_modules/
-dist/
-build/
-*.log
-.env
-.env.local
-.venv/
-__pycache__/
-*.pyc
-
-# IDE
-.idea/
-.vscode/
-*.swp
+node_modules
+dist
+release
+dist-electron
+out
+.DS_Store
+.eslintcache
+*.log*

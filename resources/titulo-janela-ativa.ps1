@@ -7,6 +7,11 @@ public class JanelaPrimeiroPlano {
   public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll", CharSet = CharSet.Unicode)]
   public static extern int GetWindowText(IntPtr hWnd, StringBuilder texto, int maxCaracteres);
+  [DllImport("user32.dll")]
+  public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+  private const int SW_MINIMIZE = 6;
+
   public static string ObterTitulo() {
     IntPtr h = GetForegroundWindow();
     if (h == IntPtr.Zero) { return ""; }
@@ -14,6 +19,18 @@ public class JanelaPrimeiroPlano {
     GetWindowText(h, sb, sb.Capacity);
     return sb.ToString();
   }
+
+  public static void MinimizarAtiva() {
+    IntPtr h = GetForegroundWindow();
+    if (h != IntPtr.Zero) {
+      ShowWindow(h, SW_MINIMIZE);
+    }
+  }
 }
 "@
-[JanelaPrimeiroPlano]::ObterTitulo()
+
+if ($args.Count -gt 0 -and $args[0] -eq "minimizar") {
+  [JanelaPrimeiroPlano]::MinimizarAtiva()
+} else {
+  [JanelaPrimeiroPlano]::ObterTitulo()
+}

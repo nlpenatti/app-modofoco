@@ -2,9 +2,26 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { abrirCalculadoraSistema, abrirPesquisaWeb } from './servicoAtalhosSistema'
+import {
+  abrirCalculadoraSistema,
+  abrirPesquisaWeb,
+  minimizarTodasJanelas,
+  alternarMudoSistema,
+  abrirPastaEstudos
+} from './servicoAtalhosSistema'
 import { configurarAtualizacaoAutomatica, verificarAtualizacoesManual } from './servicoAtualizacao'
 import { abrirFluxoDesinstalacao, definirMonitorFocoAtivo } from './servicoMonitorFoco'
+import {
+  definirEstadoBridgeExtensao,
+  encerrarServidorBridgeExtensao,
+  iniciarServidorBridgeExtensao
+} from './servicoBridgeExtensao'
+import {
+  garantirListasCarregadas,
+  obterListasBloqueioParaRenderer,
+  restaurarListasBloqueioPadrao,
+  salvarListasBloqueio
+} from './servicoListasBloqueio'
 
 function createWindow(): void {
   // Create the browser window.
@@ -57,7 +74,9 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   ipcMain.handle('monitor-foco:definir', (_, ativo: boolean) => {
-    return definirMonitorFocoAtivo(Boolean(ativo))
+    const ativoReal = Boolean(ativo)
+    definirEstadoBridgeExtensao(ativoReal)
+    return definirMonitorFocoAtivo(ativoReal)
   })
 
   ipcMain.handle('app:abrir-desinstalacao', () => abrirFluxoDesinstalacao())
@@ -70,7 +89,52 @@ app.whenReady().then(() => {
 
   ipcMain.handle('app:verificar-atualizacoes', () => verificarAtualizacoesManual())
 
+  ipcMain.handle('app:minimizar-todas', () => minimizarTodasJanelas())
+  ipcMain.handle('app:alternar-mudo', () => alternarMudoSistema())
+  ipcMain.handle('app:abrir-pasta-estudos', () => abrirPastaEstudos())
+
+  ipcMain.handle('app:obter-versao', () => app.getVersion())
+
+  ipcMain.handle('listas-bloqueio:obter', () => {
+    const dados = obterListasBloqueioParaRenderer()
+    return {
+      ok: true as const,
+      hosts: dados.hosts,
+      indicadoresTituloJanela: dados.indicadoresTituloJanela
+    }
+  })
+
+  ipcMain.handle(
+    'listas-bloqueio:salvar',
+    (
+      _,
+      payload: { hosts: unknown; indicadoresTituloJanela: unknown }
+    ):
+      | { ok: true; hosts: string[]; indicadoresTituloJanela: string[] }
+      | { ok: false; motivo: string } => {
+      const r = salvarListasBloqueio(payload)
+      if (!r.ok) return { ok: false, motivo: r.motivo }
+      return {
+        ok: true,
+        hosts: r.dados.hosts,
+        indicadoresTituloJanela: r.dados.indicadoresTituloJanela
+      }
+    }
+  )
+
+  ipcMain.handle('listas-bloqueio:restaurar-padrao', () => {
+    const dados = restaurarListasBloqueioPadrao()
+    return {
+      ok: true as const,
+      hosts: dados.hosts,
+      indicadoresTituloJanela: dados.indicadoresTituloJanela
+    }
+  })
+
   configurarAtualizacaoAutomatica()
+
+  garantirListasCarregadas()
+  iniciarServidorBridgeExtensao()
 
   createWindow()
 
@@ -86,8 +150,13 @@ app.whenReady().then(() => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    encerrarServidorBridgeExtensao()
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  encerrarServidorBridgeExtensao()
 })
 
 // In this file you can include the rest of your app's specific main process

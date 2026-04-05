@@ -1,6 +1,6 @@
 {
   "name": "modo-foco",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "description": "App desktop para foco: rotina, Pomodoro, alertas de distração, calculadora e pesquisa rápida",
   "main": "./out/main/index.js",
   "author": "",

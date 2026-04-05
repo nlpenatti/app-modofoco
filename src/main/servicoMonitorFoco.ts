@@ -2,23 +2,11 @@ import { execFile } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { Notification, BrowserWindow, app, shell } from 'electron'
+import { obterIndicadoresJanelaOrdenados } from './servicoListasBloqueio'
 
-/** Padrões no título da janela em foco (navegadores costumam pôr o site no título). */
-const INDICADORES_DISTRACAO = [
-  'youtube',
-  'youtu.be',
-  'netflix',
-  'tiktok',
-  'instagram',
-  'facebook',
-  'twitch',
-  'twitter',
-  'reddit',
-  'discord'
-]
-
-const COOLDOWN_ALERTA_MS = 45_000
-const INTERVALO_POLL_MS = 2_500
+const COOLDOWN_ALERTA_MS = 18_000
+/** Intervalo curto: troca rápida de aba (ex.: chat no navegador) ainda entra na próxima verificação. */
+const INTERVALO_POLL_MS = 550
 
 let intervaloMonitor: ReturnType<typeof setInterval> | null = null
 let ultimoAlertaEm = 0
@@ -61,15 +49,19 @@ function obterTituloJanelaAtiva(): Promise<string> {
   })
 }
 
-function tituloIndicaDistraction(titulo: string): boolean {
+function encontrarIndicadorDistraction(titulo: string): string | null {
   const t = titulo.toLowerCase()
-  return INDICADORES_DISTRACAO.some((p) => t.includes(p))
+  for (const p of obterIndicadoresJanelaOrdenados()) {
+    if (t.includes(p)) return p
+  }
+  return null
 }
 
 function emitirAtividadeParaRenderers(payload: {
   tipo: 'distraction_detected'
   tituloJanela: string
   instante: string
+  indicador?: string
 }): void {
   for (const janela of BrowserWindow.getAllWindows()) {
     if (!janela.isDestroyed()) {
@@ -78,25 +70,64 @@ function emitirAtividadeParaRenderers(payload: {
   }
 }
 
+/** Traz as janelas do app ao primeiro plano (Windows/macOS). */
+function trazerJanelasAppAoFoco(): void {
+  const janelas = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed())
+  if (janelas.length === 0) return
+
+  for (const janela of janelas) {
+    if (janela.isMinimized()) janela.restore()
+    janela.show()
+  }
+
+  const principal = janelas[janelas.length - 1] ?? janelas[0]
+
+  if (process.platform === 'darwin') {
+    app.focus({ steal: true })
+  }
+
+  principal.setAlwaysOnTop(true)
+  principal.focus()
+  principal.moveTop()
+
+  setTimeout(() => {
+    if (!principal.isDestroyed()) {
+      principal.setAlwaysOnTop(false)
+      principal.focus()
+    }
+  }, 400)
+
+  if (process.platform === 'win32') {
+    principal.flashFrame(true)
+    setTimeout(() => {
+      if (!principal.isDestroyed()) principal.flashFrame(false)
+    }, 2800)
+  }
+}
+
 async function verificarUmaVez(): Promise<void> {
   const titulo = await obterTituloJanelaAtiva()
-  if (!titulo || !tituloIndicaDistraction(titulo)) return
+  const indicador = titulo ? encontrarIndicadorDistraction(titulo) : null
+  if (!titulo || !indicador) return
 
   const agora = Date.now()
   if (agora - ultimoAlertaEm < COOLDOWN_ALERTA_MS) return
   ultimoAlertaEm = agora
 
+  trazerJanelasAppAoFoco()
+
   const payload = {
     tipo: 'distraction_detected' as const,
     tituloJanela: titulo,
-    instante: new Date().toISOString()
+    instante: new Date().toISOString(),
+    indicador
   }
   emitirAtividadeParaRenderers(payload)
 
   if (Notification.isSupported()) {
     new Notification({
       title: 'Modo Foco',
-      body: 'Detectamos uma possível distração em primeiro plano. Volte ao foco quando puder.'
+      body: 'Um momento — volte ao app e retome seu foco.'
     }).show()
   }
 }

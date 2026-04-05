@@ -2,8 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   EventoMonitorAtividade,
+  ListasBloqueioPayload,
   ResultadoAtalho,
   ResultadoDesinstalacao,
+  ResultadoListasBloqueio,
   ResultadoMonitorFoco,
   ResultadoVerificacaoAtualizacao
 } from './tipos-api'
@@ -23,6 +25,26 @@ const api = {
 
   verificarAtualizacoes: (): Promise<ResultadoVerificacaoAtualizacao> =>
     ipcRenderer.invoke('app:verificar-atualizacoes'),
+
+  minimizarTodasJanelas: (): Promise<ResultadoAtalho> =>
+    ipcRenderer.invoke('app:minimizar-todas'),
+
+  alternarMudo: (): Promise<ResultadoAtalho> =>
+    ipcRenderer.invoke('app:alternar-mudo'),
+
+  abrirPastaEstudos: (): Promise<ResultadoAtalho> =>
+    ipcRenderer.invoke('app:abrir-pasta-estudos'),
+
+  obterVersaoApp: (): Promise<string> => ipcRenderer.invoke('app:obter-versao'),
+
+  obterListasBloqueio: (): Promise<ResultadoListasBloqueio> =>
+    ipcRenderer.invoke('listas-bloqueio:obter'),
+
+  salvarListasBloqueio: (payload: ListasBloqueioPayload): Promise<ResultadoListasBloqueio> =>
+    ipcRenderer.invoke('listas-bloqueio:salvar', payload),
+
+  restaurarListasBloqueioPadrao: (): Promise<ResultadoListasBloqueio> =>
+    ipcRenderer.invoke('listas-bloqueio:restaurar-padrao'),
 
   aoAtividadeMonitor: (callback: (evento: EventoMonitorAtividade) => void): (() => void) => {
     const canal = 'monitor-foco:atividade'

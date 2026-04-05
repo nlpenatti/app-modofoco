@@ -1,0 +1,50 @@
+Modo Foco — extensão Chrome / Edge (colaboração com o app)
+==========================================================
+
+O que faz
+---------
+Quando o Pomodoro está em fase de foco com o timer rodando, o app liga automaticamente o
+monitor de distrações e expõe o estado em http://127.0.0.1:48721/api/foco como JSON:
+  focoAtivo (boolean), hosts (domínios), prefixosUrl (prefixos de endereço http/https),
+  versaoBridge (número, uso interno).
+
+A extensão compara o endereço completo da aba (URL sem fragmento #) com prefixosUrl; se bater,
+substitui a página por "Site bloqueado". Se a API não mandar prefixosUrl (app antigo), cai no
+match só por hostname em hosts.
+
+Consultas ao app ocorrem: ao mudar URL (incluindo SPAs como Instagram, via API webNavigation),
+ao concluir carregamento de aba, ao trocar de aba, e a cada 1 minuto (alarme) para revarrer
+abas abertas. Após atualizar a extensão, use "Recarregar" em chrome://extensions ou edge://extensions.
+
+Requisitos
+----------
+1. O aplicativo Modo Foco precisa estar ABERTO (o servidor local sobe com o app).
+2. Carregar esta pasta como "extensão sem empacotamento" no Chrome ou Edge.
+
+Instalação (Chrome)
+--------------------
+1. Abra chrome://extensions
+2. Ative "Modo do desenvolvedor"
+3. "Carregar sem compactação" → selecione a pasta extensao-modo-foco
+
+Instalação (Edge)
+------------------
+1. Abra edge://extensions
+2. Ative "Modo de desenvolvedor"
+3. "Carregar sem compactação" → selecione a pasta extensao-modo-foco
+
+Porta e lista de sites
+----------------------
+A porta 48721 deve coincidir com PORTA_BRIDGE_EXTENSAO em src/main/servicoBridgeExtensao.ts
+(se você mudar no app, mude também host_permissions no manifest.json e API_FOCO em background.js).
+
+As regras ficam no app (HOSTS_BLOQUEIO e PREFIXOS_URL_EXTRAS em servicoBridgeExtensao.ts).
+Os prefixos de URL são gerados a partir dos hosts (https/http, com e sem www quando couber);
+PREFIXOS_URL_EXTRAS permite incluir endereços completos, por exemplo com caminho ou query.
+
+Se a porta 48721 já estiver em uso por outro programa, o app pode não subir o servidor;
+nesse caso a extensão verá focoAtivo como false até o conflito ser resolvido.
+
+Quando o foco termina
+----------------------
+Atualize a aba (F5) para voltar ao site normal.

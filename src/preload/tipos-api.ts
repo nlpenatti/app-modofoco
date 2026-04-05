@@ -34,3 +34,11 @@ export type ListasBloqueioPayload = {
 export type ResultadoListasBloqueio =
   | { ok: true; hosts: string[]; indicadoresTituloJanela: string[] }
   | { ok: false; motivo: string }
+
+export type AtalhoGlobalPomodoroPayload = {
+  acao: 'alternar_rodando'
+}
+
+export type ResultadoNotificacaoSistema = {
+  ok: boolean
+}

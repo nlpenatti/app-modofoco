@@ -12,6 +12,7 @@ declare global {
       minimizarTodasJanelas: () => Promise<{ ok: boolean; motivo?: string }>
       alternarMudo: () => Promise<{ ok: boolean; motivo?: string }>
       abrirPastaEstudos: () => Promise<{ ok: boolean; motivo?: string }>
+      abrirPastaExtensao: () => Promise<{ ok: boolean; motivo?: string }>
       obterVersaoApp: () => Promise<string>
       obterListasBloqueio: () => Promise<
         | { ok: true; hosts: string[]; indicadoresTituloJanela: string[] }
@@ -35,6 +36,10 @@ declare global {
           instante: string
           indicador?: string
         }) => void
+      ) => () => void
+      mostrarNotificacaoSistema: (titulo: string, corpo: string) => Promise<{ ok: boolean }>
+      aoAtalhoGlobalPomodoro: (
+        callback: (payload: { acao: 'alternar_rodando' }) => void
       ) => () => void
     }
   }

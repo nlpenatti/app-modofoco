@@ -16,8 +16,10 @@ asarUnpack:
 extraResources:
   - from: resources/titulo-janela-ativa.ps1
     to: titulo-janela-ativa.ps1
+  - from: extensao-modo-foco
+    to: extensao
 win:
-  signAndEditExecutable: false
+  icon: build/icon.ico
   executableName: ModoFoco
   target:
     - target: nsis
@@ -31,7 +33,12 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  include: build/installer.nsh
 mac:
+  icon: build/icon.png
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.

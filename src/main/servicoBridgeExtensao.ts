@@ -1,9 +1,12 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { WebSocketServer, WebSocket } from 'ws'
 import { garantirListasCarregadas, obterHostsBloqueio } from './servicoListasBloqueio'
 
 /** Porta fixa: a extensão Chrome/Edge usa a mesma em manifest e background. */
 export const PORTA_BRIDGE_EXTENSAO = 48721
+
+const CAMINHO_WS_FOCO = '/api/foco/ws'
 
 /**
  * Prefixos de endereço (URL) que também bloqueiam (https/http + caminho opcional).
@@ -40,11 +43,54 @@ function construirPrefixosUrlDosHosts(hosts: string[]): string[] {
   return [...set].sort((a, b) => b.length - a.length)
 }
 
+type PayloadFoco = {
+  focoAtivo: boolean
+  hosts: string[]
+  prefixosUrl: string[]
+  versaoBridge: number
+}
+
 let servidor: http.Server | null = null
+let servidorWs: WebSocketServer | null = null
+const clientesWs = new Set<WebSocket>()
 let focoMonitorAtivo = false
+
+function obterPayloadFoco(): PayloadFoco {
+  garantirListasCarregadas()
+  const hosts = obterHostsBloqueio()
+  const prefixosUrl = [
+    ...construirPrefixosUrlDosHosts(hosts),
+    ...PREFIXOS_URL_EXTRAS.map((p) => p.trim()).filter(Boolean)
+  ]
+  return {
+    focoAtivo: focoMonitorAtivo,
+    hosts,
+    prefixosUrl,
+    versaoBridge: 2
+  }
+}
+
+function serializarPayloadFoco(): string {
+  return JSON.stringify(obterPayloadFoco())
+}
+
+function difundirEstadoParaExtensoes(): void {
+  if (clientesWs.size === 0) return
+  const corpo = serializarPayloadFoco()
+  for (const cliente of clientesWs) {
+    if (cliente.readyState === WebSocket.OPEN) {
+      try {
+        cliente.send(corpo)
+      } catch {
+        /* socket pode estar fechando */
+      }
+    }
+  }
+}
 
 export function definirEstadoBridgeExtensao(ativo: boolean): void {
   focoMonitorAtivo = ativo
+  difundirEstadoParaExtensoes()
 }
 
 export function obterPortaBridgeExtensao(): number {
@@ -57,18 +103,7 @@ export function iniciarServidorBridgeExtensao(): void {
   servidor = http.createServer((req, res) => {
     const url = req.url ?? ''
     if (url === '/api/foco' || url.startsWith('/api/foco?')) {
-      garantirListasCarregadas()
-      const hosts = obterHostsBloqueio()
-      const prefixosUrl = [
-        ...construirPrefixosUrlDosHosts(hosts),
-        ...PREFIXOS_URL_EXTRAS.map((p) => p.trim()).filter(Boolean)
-      ]
-      const corpo = JSON.stringify({
-        focoAtivo: focoMonitorAtivo,
-        hosts,
-        prefixosUrl,
-        versaoBridge: 2
-      })
+      const corpo = serializarPayloadFoco()
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
@@ -91,11 +126,44 @@ export function iniciarServidorBridgeExtensao(): void {
     res.writeHead(404).end()
   })
 
+  /**
+   * Anexar o WSS ao mesmo `http.Server` com `path` evita 404 no handshake:
+   * em alguns ambientes o evento `upgrade` manual + `handleUpgrade` não intercepta
+   * antes do handler HTTP devolver 404.
+   */
+  servidorWs = new WebSocketServer({ server: servidor, path: CAMINHO_WS_FOCO })
+
+  servidorWs.on('connection', (socket) => {
+    clientesWs.add(socket)
+    try {
+      socket.send(serializarPayloadFoco())
+    } catch {
+      /* ignora */
+    }
+    socket.on('close', () => {
+      clientesWs.delete(socket)
+    })
+    socket.on('error', () => {
+      clientesWs.delete(socket)
+    })
+  })
+
   servidor.on('error', (erro: NodeJS.ErrnoException) => {
     if (erro.code === 'EADDRINUSE') {
       console.warn(
         `[Modo Foco] Porta ${PORTA_BRIDGE_EXTENSAO} em uso — bridge da extensão desativado. Feche o outro processo ou mude PORTA_BRIDGE_EXTENSAO.`
       )
+      for (const cliente of clientesWs) {
+        try {
+          cliente.close()
+        } catch {
+          /* ignora */
+        }
+      }
+      clientesWs.clear()
+      servidorWs?.close()
+      servidorWs = null
+      servidor?.close()
       servidor = null
       return
     }
@@ -106,11 +174,22 @@ export function iniciarServidorBridgeExtensao(): void {
     const addr = servidor?.address() as AddressInfo | undefined
     if (addr) {
       console.log(`[Modo Foco] Bridge extensão: http://127.0.0.1:${addr.port}/api/foco`)
+      console.log(`[Modo Foco] Push extensão (WebSocket): ws://127.0.0.1:${addr.port}${CAMINHO_WS_FOCO}`)
     }
   })
 }
 
 export function encerrarServidorBridgeExtensao(): void {
+  for (const cliente of clientesWs) {
+    try {
+      cliente.close()
+    } catch {
+      /* ignora */
+    }
+  }
+  clientesWs.clear()
+  servidorWs?.close()
+  servidorWs = null
   if (!servidor) return
   servidor.close()
   servidor = null

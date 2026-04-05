@@ -1,6 +1,6 @@
 {
   "name": "modo-foco",
-  "version": "1.0.6",
+  "version": "1.2.2",
   "description": "App desktop para foco: rotina, Pomodoro, alertas de distração, calculadora e pesquisa rápida",
   "main": "./out/main/index.js",
   "author": "",
@@ -29,7 +29,11 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.8.3",
+    "framer-motion": "^12.38.0",
+    "recharts": "^3.8.1",
+    "winreg": "^1.2.5",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
@@ -39,6 +43,8 @@
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/winreg": "^1.2.36",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.1",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",

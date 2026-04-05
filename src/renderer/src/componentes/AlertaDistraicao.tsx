@@ -7,12 +7,12 @@ type Props = {
 export function AlertaDistraicao({ aoFechar }: Props): React.JSX.Element {
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/45 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-texto/40 p-4 backdrop-blur-md"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="alerta-dist-titulo"
     >
-      <div className="w-full max-w-md rounded-2xl border border-rose-200/80 bg-white/95 p-7 shadow-2xl shadow-stone-900/20 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-[var(--radius-card-lg)] border border-rose-200/80 bg-superficie/98 p-7 shadow-[var(--shadow-app-card)] backdrop-blur-sm">
         <div className="flex gap-4">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
             <svg
@@ -31,20 +31,20 @@ export function AlertaDistraicao({ aoFechar }: Props): React.JSX.Element {
             </svg>
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="alerta-dist-titulo" className="text-lg font-semibold text-stone-900">
+            <h2 id="alerta-dist-titulo" className="font-display text-lg font-semibold text-texto">
               Voltemos ao foco
             </h2>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">
-              Parece que o rumo saiu um pouco do estudo. Sem julgamento — respira e retoma o que você tinha
-              combinado com você mesmo.
+            <p className="mt-2 text-sm leading-relaxed text-texto-mudo">
+              Parece que o rumo saiu um pouco do estudo. Sem julgamento — respira e retoma o que você
+              tinha combinado com você mesmo.
             </p>
           </div>
         </div>
-        <div className="mt-7 flex justify-end gap-2 border-t border-stone-100 pt-5">
+        <div className="mt-7 flex justify-end gap-2 border-t border-borda pt-5">
           <button
             type="button"
             onClick={aoFechar}
-            className="inline-flex rounded-full bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-900/15 transition hover:bg-teal-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            className="inline-flex rounded-2xl bg-primaria px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-app-soft)] transition hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primaria/45 focus-visible:ring-offset-2 focus-visible:ring-offset-superficie"
           >
             Voltar ao foco
           </button>

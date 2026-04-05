@@ -1,12 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  AtalhoGlobalPomodoroPayload,
   EventoMonitorAtividade,
   ListasBloqueioPayload,
   ResultadoAtalho,
   ResultadoDesinstalacao,
   ResultadoListasBloqueio,
   ResultadoMonitorFoco,
+  ResultadoNotificacaoSistema,
   ResultadoVerificacaoAtualizacao
 } from './tipos-api'
 import type { IpcRendererEvent } from 'electron'
@@ -35,7 +37,13 @@ const api = {
   abrirPastaEstudos: (): Promise<ResultadoAtalho> =>
     ipcRenderer.invoke('app:abrir-pasta-estudos'),
 
+  abrirPastaExtensao: (): Promise<ResultadoAtalho> =>
+    ipcRenderer.invoke('app:abrir-pasta-extensao'),
+
   obterVersaoApp: (): Promise<string> => ipcRenderer.invoke('app:obter-versao'),
+
+  mostrarNotificacaoSistema: (titulo: string, corpo: string): Promise<ResultadoNotificacaoSistema> =>
+    ipcRenderer.invoke('notificacao:sistema', { titulo, corpo }),
 
   obterListasBloqueio: (): Promise<ResultadoListasBloqueio> =>
     ipcRenderer.invoke('listas-bloqueio:obter'),
@@ -49,6 +57,17 @@ const api = {
   aoAtividadeMonitor: (callback: (evento: EventoMonitorAtividade) => void): (() => void) => {
     const canal = 'monitor-foco:atividade'
     const listener = (_: IpcRendererEvent, payload: EventoMonitorAtividade): void => {
+      callback(payload)
+    }
+    ipcRenderer.on(canal, listener)
+    return () => {
+      ipcRenderer.removeListener(canal, listener)
+    }
+  },
+
+  aoAtalhoGlobalPomodoro: (callback: (payload: AtalhoGlobalPomodoroPayload) => void): (() => void) => {
+    const canal = 'pomodoro:atalho-global'
+    const listener = (_: IpcRendererEvent, payload: AtalhoGlobalPomodoroPayload): void => {
       callback(payload)
     }
     ipcRenderer.on(canal, listener)

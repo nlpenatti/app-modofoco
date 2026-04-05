@@ -1,15 +1,69 @@
 /**
  * Consulta o app Modo Foco (Electron) em localhost e injeta "Site bloqueado" nas abas elegíveis.
  * Usa webNavigation para SPAs (ex.: Instagram) onde a URL muda sem recarregar a página inteira.
+ * WebSocket em /api/foco/ws: o app empurra estado ao ligar/desligar foco (sem esperar o alarme de 1 min).
  */
 
 const API_FOCO = 'http://127.0.0.1:48721/api/foco'
+const WS_FOCO = 'ws://127.0.0.1:48721/api/foco/ws'
 
 /** @type {{ focoAtivo: boolean, hosts: string[], prefixosUrl: string[] }} */
 let estadoCache = { focoAtivo: false, hosts: [], prefixosUrl: [] }
 
 /** Evita várias requisições paralelas ao mesmo tempo. */
 let buscaApiEmCurso = null
+
+/** Backoff para reconectar o push quando o app estiver fechado. */
+let proximaTentativaWsMs = 1000
+
+/**
+ * @param {unknown} j
+ */
+function aplicarPayloadApi(j) {
+  if (!j || typeof j !== 'object') return
+  const o = /** @type {{ focoAtivo?: unknown, hosts?: unknown, prefixosUrl?: unknown }} */ (j)
+  estadoCache = {
+    focoAtivo: Boolean(o.focoAtivo),
+    hosts: Array.isArray(o.hosts) ? o.hosts : [],
+    prefixosUrl: Array.isArray(o.prefixosUrl) ? o.prefixosUrl : []
+  }
+}
+
+function agendarReconectarPushFoco() {
+  const atraso = proximaTentativaWsMs
+  proximaTentativaWsMs = Math.min(proximaTentativaWsMs * 2, 30_000)
+  setTimeout(conectarPushWebSocketFoco, atraso)
+}
+
+function conectarPushWebSocketFoco() {
+  try {
+    const ws = new WebSocket(WS_FOCO)
+    ws.onopen = () => {
+      proximaTentativaWsMs = 1000
+    }
+    ws.onmessage = (ev) => {
+      try {
+        const j = JSON.parse(ev.data)
+        aplicarPayloadApi(j)
+        void revarrerTodasAbasComRegras()
+      } catch {
+        /* ignora */
+      }
+    }
+    ws.onclose = () => {
+      agendarReconectarPushFoco()
+    }
+    ws.onerror = () => {
+      try {
+        ws.close()
+      } catch {
+        /* ignora */
+      }
+    }
+  } catch {
+    agendarReconectarPushFoco()
+  }
+}
 
 function hostDeveSerBloqueado(hostname, hosts) {
   const h = hostname.toLowerCase()
@@ -53,11 +107,7 @@ async function atualizarEstadoDoApp() {
         const r = await fetch(API_FOCO, { cache: 'no-store' })
         if (!r.ok) throw new Error(String(r.status))
         const j = await r.json()
-        estadoCache = {
-          focoAtivo: Boolean(j.focoAtivo),
-          hosts: Array.isArray(j.hosts) ? j.hosts : [],
-          prefixosUrl: Array.isArray(j.prefixosUrl) ? j.prefixosUrl : []
-        }
+        aplicarPayloadApi(j)
       } catch {
         estadoCache = { focoAtivo: false, hosts: [], prefixosUrl: [] }
       }
@@ -92,6 +142,13 @@ async function bloquearAbaSeAplicavel(tabId) {
     })
   } catch {
     /* chrome://, Web Store, PDF viewer, etc. */
+  }
+}
+
+async function revarrerTodasAbasComRegras() {
+  const tabs = await chrome.tabs.query({})
+  for (const t of tabs) {
+    if (t.id != null) await bloquearAbaSeAplicavel(t.id)
   }
 }
 
@@ -160,11 +217,8 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== 'modoFocoPoll') return
   await atualizarEstadoDoApp()
-  if (!estadoCache.focoAtivo) return
-  const tabs = await chrome.tabs.query({})
-  for (const t of tabs) {
-    if (t.id != null) await bloquearAbaSeAplicavel(t.id)
-  }
+  await revarrerTodasAbasComRegras()
 })
 
 void atualizarEstadoDoApp()
+conectarPushWebSocketFoco()

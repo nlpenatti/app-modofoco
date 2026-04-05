@@ -1,6 +1,8 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, session } from 'electron'
 import { join } from 'path'
+import { existsSync, rmSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import Registry from 'winreg'
 import icon from '../../resources/icon.png?asset'
 import {
   abrirCalculadoraSistema,
@@ -22,6 +24,11 @@ import {
   restaurarListasBloqueioPadrao,
   salvarListasBloqueio
 } from './servicoListasBloqueio'
+import {
+  encerrarAtalhosGlobaisPomodoro,
+  registrarAtalhosGlobaisPomodoro
+} from './servicoAtalhosGlobaisPomodoro'
+import { mostrarNotificacaoModoFoco } from './servicoNotificacaoSistema'
 
 function createWindow(): void {
   // Create the browser window.
@@ -32,7 +39,7 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -57,12 +64,59 @@ function createWindow(): void {
   }
 }
 
+function verificarEResetarSeNovaInstalacao(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') return resolve(false)
+
+    const regKey = new Registry({
+      hive: Registry.HKCU,
+      key: '\\Software\\ModoFoco'
+    })
+
+    regKey.get('NovaInstalacao', (err, item) => {
+      if (!err && item && item.value === '1') {
+        // Limpar flag
+        regKey.remove('NovaInstalacao', () => {})
+
+        // Apagar dados de usuário do backend
+        try {
+          const udPath = app.getPath('userData')
+          // Apagar json das listas se existir
+          const listasFile = join(udPath, 'listas-bloqueio.json')
+          if (existsSync(listasFile)) rmSync(listasFile)
+          
+          // Nota: O localStorage / IndexedDB vive em Partitions. 
+          // O mais seguro para resetar o frontend do electron é via session
+        } catch (e) {
+          console.error('[Reset] Erro ao limpar arquivos:', e)
+        }
+
+        resolve(true)
+      } else {
+        resolve(false)
+      }
+    })
+  })
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const isNovaInstalacao = await verificarEResetarSeNovaInstalacao()
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.foco.modo')
+
+  if (isNovaInstalacao) {
+    // Limpar cache, localStorage e IndexedDB da sessão principal do usuário
+    try {
+      await session.defaultSession.clearStorageData()
+      console.log('[Reset] Storage do renderer limpo com sucesso.')
+    } catch (e) {
+      console.error('[Reset] Erro ao limpar storage da session:', e)
+    }
+  }
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -93,7 +147,28 @@ app.whenReady().then(() => {
   ipcMain.handle('app:alternar-mudo', () => alternarMudoSistema())
   ipcMain.handle('app:abrir-pasta-estudos', () => abrirPastaEstudos())
 
+  ipcMain.handle('app:abrir-pasta-extensao', async () => {
+    try {
+      const pastaDev = join(app.getAppPath(), 'extensao-modo-foco')
+      const pastaProd = join(process.resourcesPath, 'extensao')
+      const target = app.isPackaged ? pastaProd : pastaDev
+      if (existsSync(target)) {
+        await shell.openPath(target)
+        return { ok: true }
+      }
+      return { ok: false, motivo: 'Pasta da extensão não encontrada' }
+    } catch (e: any) {
+      return { ok: false, motivo: e.message }
+    }
+  })
+
   ipcMain.handle('app:obter-versao', () => app.getVersion())
+
+  ipcMain.handle('notificacao:sistema', (_event, payload: { titulo?: unknown; corpo?: unknown }) => {
+    const titulo = typeof payload?.titulo === 'string' ? payload.titulo : 'Modo Foco'
+    const corpo = typeof payload?.corpo === 'string' ? payload.corpo : ''
+    return { ok: mostrarNotificacaoModoFoco(titulo, corpo) }
+  })
 
   ipcMain.handle('listas-bloqueio:obter', () => {
     const dados = obterListasBloqueioParaRenderer()
@@ -106,16 +181,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle(
     'listas-bloqueio:salvar',
-    (
-      _,
-      payload: { hosts: unknown; indicadoresTituloJanela: unknown }
-    ):
-      | { ok: true; hosts: string[]; indicadoresTituloJanela: string[] }
-      | { ok: false; motivo: string } => {
+    (_event, payload: { hosts: unknown; indicadoresTituloJanela: unknown }) => {
       const r = salvarListasBloqueio(payload)
-      if (!r.ok) return { ok: false, motivo: r.motivo }
       return {
-        ok: true,
+        ok: true as const,
         hosts: r.dados.hosts,
         indicadoresTituloJanela: r.dados.indicadoresTituloJanela
       }
@@ -135,6 +204,8 @@ app.whenReady().then(() => {
 
   garantirListasCarregadas()
   iniciarServidorBridgeExtensao()
+
+  registrarAtalhosGlobaisPomodoro()
 
   createWindow()
 
@@ -156,6 +227,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  encerrarAtalhosGlobaisPomodoro()
   encerrarServidorBridgeExtensao()
 })
 

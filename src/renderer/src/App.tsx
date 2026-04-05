@@ -1,15 +1,29 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { AlertaDistraicao } from './componentes/AlertaDistraicao'
 import { IndicadorPomodoroCompacto } from './componentes/IndicadorPomodoroCompacto'
-import { Sidebar, type AbaPainel } from './componentes/Sidebar'
+import { ModuloConfiguracoes } from './componentes/ModuloConfiguracoes'
+import { ModuloEstatisticas } from './componentes/ModuloEstatisticas'
 import { ModuloPomodoro } from './componentes/ModuloPomodoro'
 import { ModuloRotina } from './componentes/ModuloRotina'
-import { PainelInicio } from './componentes/PainelInicio'
+import {
+  CHAVE_ONBOARDING_CONCLUIDO,
+  OnboardingPrimeiraAbertura
+} from './componentes/OnboardingPrimeiraAbertura'
+import { NavegacaoInferiorMobile, Sidebar, type AbaPainel } from './componentes/Sidebar'
 import { ProvedorPomodoro } from './contextos/ContextoPomodoro'
+import { ProvedorTema } from './contextos/ContextoTema'
+import { ProvedorToasts } from './contextos/ContextoToasts'
 
 function App(): React.JSX.Element {
-  const [abaAtiva, setAbaAtiva] = useState<AbaPainel>('inicio')
+  const [abaAtiva, setAbaAtiva] = useState<AbaPainel>('pomodoro')
   const [alertaDistraicaoAberto, setAlertaDistraicaoAberto] = useState(false)
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(() => {
+    try {
+      return localStorage.getItem(CHAVE_ONBOARDING_CONCLUIDO) !== '1'
+    } catch {
+      return true
+    }
+  })
 
   useEffect(() => {
     return window.api.aoAtividadeMonitor((evento) => {
@@ -18,43 +32,47 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  const fecharOnboarding = (): void => {
+    setMostrarOnboarding(false)
+  }
+
   return (
-    <ProvedorPomodoro>
-      <div className="flex h-screen w-screen overflow-hidden">
-        <Sidebar abaAtiva={abaAtiva} aoMudarAba={setAbaAtiva} />
+    <ProvedorTema>
+      <ProvedorToasts>
+        <ProvedorPomodoro>
+          <div className="flex h-screen w-screen overflow-hidden bg-fundo text-texto">
+            <Sidebar abaAtiva={abaAtiva} aoMudarAba={setAbaAtiva} />
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="border-b border-stone-200/70 bg-white/55 px-8 py-7 backdrop-blur-md">
-            <div className="mx-auto flex max-w-5xl flex-col gap-1.5">
-              <h1 className="text-2xl font-semibold tracking-tight text-stone-900">
-                {abaAtiva === 'inicio' && 'Seu cantinho de estudo'}
-                {abaAtiva === 'rotina' && 'Rotina de hoje'}
-                {abaAtiva === 'pomodoro' && 'Pomodoro'}
-              </h1>
-              <p className="text-sm leading-relaxed text-stone-600">
-                {abaAtiva === 'inicio' && 'Tudo que você precisa para começar sem fricção.'}
-                {abaAtiva === 'rotina' && 'Pequenos passos que somam no fim do dia.'}
-                {abaAtiva === 'pomodoro' && 'Um bloco de cada vez — respira e foca.'}
-              </p>
-            </div>
-          </header>
+            <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <div className={[
+                'flex flex-1 flex-col overflow-y-auto px-5 py-6 pb-[calc(5.25rem+env(safe-area-inset-bottom))] sm:px-10 sm:py-8 md:pb-6 scrollbar-fina'
+              ].join(' ')}>
+                <div className={[
+                  'mx-auto w-full',
+                  (abaAtiva === 'pomodoro' || abaAtiva === 'rotina') ? 'max-w-4xl' : 'max-w-3xl',
+                  abaAtiva === 'pomodoro' ? 'my-auto' : ''
+                ].join(' ')}>
+                  {abaAtiva === 'pomodoro' && <ModuloPomodoro />}
+                  {abaAtiva === 'rotina' && <ModuloRotina />}
+                  {abaAtiva === 'estatisticas' && <ModuloEstatisticas />}
+                  {abaAtiva === 'configuracoes' && <ModuloConfiguracoes />}
+                </div>
+              </div>
+            </main>
 
-          <div className="flex-1 overflow-y-auto px-6 py-8 sm:px-8">
-            <div className="mx-auto max-w-5xl rounded-[var(--radius-app)] border border-stone-200/80 bg-white/85 p-7 shadow-[var(--shadow-app-card)] backdrop-blur-sm sm:p-9">
-              {abaAtiva === 'inicio' && <PainelInicio />}
-              {abaAtiva === 'rotina' && <ModuloRotina />}
-              {abaAtiva === 'pomodoro' && <ModuloPomodoro />}
-            </div>
+            <NavegacaoInferiorMobile abaAtiva={abaAtiva} aoMudarAba={setAbaAtiva} />
+
+            {alertaDistraicaoAberto && (
+              <AlertaDistraicao aoFechar={() => setAlertaDistraicaoAberto(false)} />
+            )}
+
+            {mostrarOnboarding ? <OnboardingPrimeiraAbertura aoConcluir={fecharOnboarding} /> : null}
+
+            <IndicadorPomodoroCompacto aoAbrirPomodoro={() => setAbaAtiva('pomodoro')} />
           </div>
-        </main>
-
-        {alertaDistraicaoAberto && (
-          <AlertaDistraicao aoFechar={() => setAlertaDistraicaoAberto(false)} />
-        )}
-
-        <IndicadorPomodoroCompacto aoAbrirPomodoro={() => setAbaAtiva('pomodoro')} />
-      </div>
-    </ProvedorPomodoro>
+        </ProvedorPomodoro>
+      </ProvedorToasts>
+    </ProvedorTema>
   )
 }
 

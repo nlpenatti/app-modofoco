@@ -1,10 +1,52 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Segoe UI Variable', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
-  --radius-app: 1.25rem;
-  --shadow-app-soft: 0 1px 2px rgb(41 37 36 / 0.04), 0 12px 40px -12px rgb(41 37 36 / 0.08);
-  --shadow-app-card: 0 1px 3px rgb(41 37 36 / 0.06), 0 16px 48px -16px rgb(120 113 108 / 0.12);
+  /* Tipografia — Google Fonts ligadas no index.html */
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+
+  /* Paleta pastel (tema claro) */
+  --color-fundo: hsl(38 40% 96%);
+  --color-superficie: hsl(38 30% 99%);
+  --color-superficie-elevada: hsl(38 25% 99.5%);
+  --color-primaria: hsl(265 50% 68%);
+  --color-secundaria: hsl(160 38% 65%);
+  --color-destaque: hsl(25 80% 78%);
+  /* Pausa longa — azul pastel (referência UI) */
+  --color-pausa-longa: hsl(200 45% 68%);
+  --color-texto: hsl(270 20% 18%);
+  --color-texto-mudo: hsl(270 12% 52%);
+  --color-borda: hsl(280 20% 87%);
+
+  --radius-app: 12px;
+  --radius-card: 24px;
+  --radius-card-lg: 40px;
+
+  --shadow-app-soft:
+    0 1px 2px hsl(270 35% 40% / 0.05),
+    0 12px 40px -12px hsl(270 40% 50% / 0.09);
+  --shadow-app-card:
+    0 1px 2px hsl(270 30% 45% / 0.06),
+    0 16px 48px -16px hsl(270 35% 55% / 0.1);
+}
+
+/* Sobrescrevendo para tema escuro */
+@layer base {
+  html.escuro {
+    --color-fundo: hsl(270 25% 6%);
+    --color-superficie: hsl(270 20% 9%);
+    --color-superficie-elevada: hsl(270 18% 12%);
+    --color-texto: hsl(270 10% 94%);
+    --color-texto-mudo: hsl(270 8% 65%);
+    --color-borda: hsl(270 15% 18%);
+
+    --shadow-app-soft:
+      0 1px 2px rgb(0 0 0 / 0.4),
+      0 12px 40px -12px rgb(0 0 0 / 0.6);
+    --shadow-app-card:
+      0 1px 2px rgb(0 0 0 / 0.5),
+      0 16px 48px -16px rgb(0 0 0 / 0.7);
+  }
 }
 
 html,
@@ -15,15 +57,99 @@ body,
 }
 
 body {
-  @apply text-stone-800 antialiased;
-  user-select: none;
-  background-color: #f3f0ea;
-  background-image:
-    radial-gradient(1200px 600px at 10% -10%, rgb(254 243 199 / 0.45), transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, rgb(204 251 241 / 0.35), transparent 50%),
-    radial-gradient(800px 400px at 50% 100%, rgb(233 213 255 / 0.2), transparent 45%);
+  @apply antialiased bg-fundo text-texto;
+  font-family: var(--font-sans);
+}
+
+/* Timer: brilho suave conforme modo */
+.text-brilo-foco {
+  text-shadow:
+    0 0 20px hsl(265 50% 68% / 0.5),
+    0 0 40px hsl(265 55% 75% / 0.25);
+}
+
+/* Design da Scrollbar Global */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(280 20% 87%);
+  border-radius: 20px;
+  border: 3px solid var(--color-fundo);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(270 12% 80%);
+}
+
+html.escuro ::webkit-scrollbar-thumb {
+  background: hsl(270 15% 18%);
+  border: 3px solid var(--color-fundo);
+}
+
+html.escuro ::webkit-scrollbar-thumb:hover {
+  background: hsl(270 15% 25%);
+}
+
+/* Scrollbar fina para áreas menores */
+.scrollbar-fina::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-fina::-webkit-scrollbar-thumb {
+  border: 1.5px solid var(--color-superficie);
+}
+
+.text-brilo-pausa {
+  text-shadow:
+    0 0 20px hsl(160 38% 65% / 0.5),
+    0 0 40px hsl(160 45% 72% / 0.25);
+}
+
+.text-brilo-pausa-longa {
+  text-shadow:
+    0 0 20px hsl(200 45% 68% / 0.45),
+    0 0 40px hsl(200 50% 78% / 0.22);
+}
+
+/* Camadas: hover sutil sem sombra pesada */
+.hover-elevate {
+  position: relative;
+  isolation: isolate;
+}
+
+.hover-elevate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 0.07);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hover-elevate:hover::after {
+  opacity: 1;
 }
 
 .selecionavel {
   user-select: text;
+}
+
+.select-app-chrome {
+  user-select: none;
+}
+
+/* Barra de progresso do anel SVG */
+.ring-pomodoro-traco {
+  transition: stroke-dashoffset 0.85s linear;
 }

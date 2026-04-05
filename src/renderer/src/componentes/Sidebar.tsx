@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
+import React from 'react'
+import logo from '../assets/logo.png'
 
-export type AbaPainel = 'inicio' | 'rotina' | 'pomodoro'
+export type AbaPainel = 'pomodoro' | 'rotina' | 'estatisticas' | 'configuracoes'
 
 type Props = {
   abaAtiva: AbaPainel
@@ -9,12 +11,12 @@ type Props = {
 
 const abas: { id: AbaPainel; rotulo: string; icone: React.ReactNode }[] = [
   {
-    id: 'inicio',
-    rotulo: 'Início',
+    id: 'pomodoro',
+    rotulo: 'Foco',
     icone: (
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        className="size-5 opacity-80"
+        className="size-6"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -23,18 +25,18 @@ const abas: { id: AbaPainel; rotulo: string; icone: React.ReactNode }[] = [
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
         />
       </svg>
     )
   },
   {
     id: 'rotina',
-    rotulo: 'Rotina',
+    rotulo: 'Tarefas',
     icone: (
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        className="size-5 opacity-80"
+        className="size-6"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -49,12 +51,12 @@ const abas: { id: AbaPainel; rotulo: string; icone: React.ReactNode }[] = [
     )
   },
   {
-    id: 'pomodoro',
-    rotulo: 'Pomodoro',
+    id: 'estatisticas',
+    rotulo: 'Estatísticas',
     icone: (
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        className="size-5 opacity-80"
+        className="size-6"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -63,7 +65,32 @@ const abas: { id: AbaPainel; rotulo: string; icone: React.ReactNode }[] = [
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        />
+      </svg>
+    )
+  },
+  {
+    id: 'configuracoes',
+    rotulo: 'Ajustes',
+    icone: (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="size-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
         />
       </svg>
     )
@@ -71,65 +98,87 @@ const abas: { id: AbaPainel; rotulo: string; icone: React.ReactNode }[] = [
 ]
 
 export function Sidebar({ abaAtiva, aoMudarAba }: Props): React.JSX.Element {
-  const [versaoApp, setVersaoApp] = useState<string>('')
-
-  useEffect(() => {
-    void window.api.obterVersaoApp().then((v) => setVersaoApp(v))
-  }, [])
-
   return (
-    <div className="flex h-full w-64 flex-col justify-between border-e border-stone-200/80 bg-white/75 backdrop-blur-md">
-      <div className="px-4 py-7">
-        <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 px-4 py-3 shadow-md shadow-teal-900/15">
-          <span className="grid size-9 shrink-0 place-content-center rounded-xl bg-white/20 text-lg" aria-hidden>
-            📚
-          </span>
-          <div className="min-w-0">
-            <span className="block text-sm font-semibold tracking-tight text-white">Modo Foco</span>
-            <span className="text-xs text-teal-100/90">Estude com leveza</span>
-          </div>
+    <aside className="select-app-chrome hidden h-full w-[6.25rem] shrink-0 flex-col border-e border-borda bg-superficie/90 backdrop-blur-md md:flex">
+      <div className="flex flex-col items-center px-1.5 pb-4 pt-6">
+        <div
+          className="grid size-20 place-content-center"
+          title="Modo Foco"
+        >
+          <img src={logo} alt="Logo Modo Foco" className="size-full object-contain" />
         </div>
 
-        <p className="mt-5 px-1 text-[11px] font-medium uppercase tracking-[0.14em] text-stone-400">
-          Navegar
+        <p className="mt-5 px-0.5 text-center text-[8px] font-semibold uppercase leading-tight tracking-[0.1em] text-texto-mudo">
+          Menu
         </p>
-        <ul className="mt-2 space-y-1">
+        <nav className="relative mt-2 flex w-full flex-col gap-0.5" aria-label="Navegação principal">
           {abas.map(({ id, rotulo, icone }) => {
             const ativa = abaAtiva === id
             return (
-              <li key={id}>
+              <div key={id} className="relative">
+                {ativa ? (
+                  <motion.span
+                    layoutId="active-nav"
+                    className="absolute inset-0 rounded-2xl bg-primaria/12 ring-1 ring-primaria/25"
+                    transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                    aria-hidden
+                  />
+                ) : null}
                 <button
+                  type="button"
+                  title={rotulo}
                   onClick={() => aoMudarAba(id)}
                   className={[
-                    'flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200',
-                    ativa
-                      ? 'bg-stone-900 text-white shadow-sm shadow-stone-900/10'
-                      : 'text-stone-600 hover:bg-stone-100/90 hover:text-stone-900'
+                    'relative z-10 flex w-full flex-col items-center gap-1 rounded-2xl px-1 py-2.5 transition-colors hover-elevate',
+                    ativa ? 'text-primaria' : 'text-texto-mudo hover:text-texto'
                   ].join(' ')}
                 >
                   {icone}
-                  <span>{rotulo}</span>
+                  <span className="max-w-[5rem] text-center text-[11px] font-semibold leading-tight">
+                    {rotulo}
+                  </span>
                 </button>
-              </li>
+              </div>
             )
           })}
-        </ul>
+        </nav>
       </div>
+    </aside>
+  )
+}
 
-      <div className="sticky inset-x-0 bottom-0 border-t border-stone-200/70 p-4">
-        <div className="flex items-center gap-3 rounded-xl bg-stone-50/90 p-3.5 ring-1 ring-stone-200/60">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-200 to-orange-200 text-sm font-bold text-amber-900">
-            MF
-          </div>
-
-          <div className="min-w-0">
-            <p className="text-xs">
-              <strong className="block font-medium text-stone-800">Este app</strong>
-              <span className="text-stone-500">{versaoApp ? `versão ${versaoApp}` : 'carregando…'}</span>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+export function NavegacaoInferiorMobile({ abaAtiva, aoMudarAba }: Props): React.JSX.Element {
+  return (
+    <nav
+      className="select-app-chrome fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around border-t border-borda bg-superficie/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md md:hidden"
+      aria-label="Navegação principal"
+    >
+      {abas.map(({ id, rotulo, icone }) => {
+        const ativa = abaAtiva === id
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => aoMudarAba(id)}
+            className={[
+              'flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-2xl py-1.5 transition active:scale-95 motion-safe:hover:scale-[1.03]',
+              ativa ? 'text-primaria' : 'text-texto-mudo'
+            ].join(' ')}
+          >
+            <span
+              className={[
+                'flex size-10 items-center justify-center rounded-2xl transition-colors',
+                ativa ? 'bg-primaria/14 text-primaria' : ''
+              ].join(' ')}
+            >
+              <span className={ativa ? 'scale-105' : ''}>{icone}</span>
+            </span>
+            <span className="line-clamp-2 max-w-[4.25rem] text-center text-[9px] font-semibold leading-tight">
+              {rotulo}
+            </span>
+          </button>
+        )
+      })}
+    </nav>
   )
 }

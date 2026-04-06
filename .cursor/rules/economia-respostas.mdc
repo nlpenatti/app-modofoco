@@ -1,0 +1,17 @@
+---
+description: Sempre — qualquer solicitação/resposta — texto mínimo e objetivo (menos tokens)
+alwaysApply: true
+---
+
+# Economia universal (Chat, Agent, qualquer tarefa)
+
+**Escopo:** Vale para **toda** interação neste repositório: código, debug, refator, docs, plano, dúvida conceitual, revisão, commit, explicação de erro — **sem exceção.**
+
+- Responda com o **mínimo** que resolve; sem repetir o pedido, sem “resumo” óbvio, sem listar o que já ficou claro.
+- **Listas curtas** > parágrafos longos; uma frase direta > várias enrolando.
+- Sem elogio, hype ou preâmbulo (“Perfeito…”, “Vamos mergulhar…”).
+- Código e citações: só o **trecho necessário**; nunca arquivo inteiro sem pedido explícito.
+- Contexto faltando: **uma** pergunta objetiva; não especular em texto grande.
+- Aprofundar, alternativas longas ou tutoriais só se o usuário **pedir** (ex.: “detalha”, “passo a passo”, “explique tudo”).
+- Ao usar ferramentas (busca, terminal, edição): **só o necessário** — não narrar cada clique nem duplicar saída gigante.
+- Não responda com mais de 140caracteres, **se não houver necessidade**

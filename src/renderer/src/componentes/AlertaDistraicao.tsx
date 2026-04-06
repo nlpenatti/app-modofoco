@@ -1,10 +1,14 @@
 import type React from 'react'
 
 type Props = {
+  indicador?: string
+  tituloJanela?: string
   aoFechar: () => void
 }
 
-export function AlertaDistraicao({ aoFechar }: Props): React.JSX.Element {
+export function AlertaDistraicao({ indicador, tituloJanela, aoFechar }: Props): React.JSX.Element {
+  const nomeExibicao = indicador || (tituloJanela ? tituloJanela.slice(0, 30) + '...' : 'um aplicativo')
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-texto/40 p-4 backdrop-blur-md"
@@ -35,8 +39,8 @@ export function AlertaDistraicao({ aoFechar }: Props): React.JSX.Element {
               Voltemos ao foco!
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-texto-mudo">
-              Parece que o rumo saiu um pouco do estudo. Sem julgamento — respira e retoma o que você
-              tinha combinado com você mesmo.
+              O aplicativo <span className="font-bold text-rose-600 italic">"{nomeExibicao}"</span> tirou você do caminho. 
+              Sem julgamento — respira e retoma o que você tinha combinado com você mesmo.
             </p>
           </div>
         </div>

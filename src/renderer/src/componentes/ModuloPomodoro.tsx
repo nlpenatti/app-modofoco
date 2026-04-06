@@ -1,12 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   duracaoSegmentoAtual,
+  formatarTempoCronometro,
   formatarTempoPomodoro,
   segmentoPomodoroUI,
   usePomodoro,
   type SegmentoPomodoroUI
 } from '../contextos/ContextoPomodoro'
+import { useToasts } from '../contextos/ContextoToasts'
 import { EditorListasBloqueio } from './EditorListasBloqueio'
 
 const RAIO_ANEL = 58
@@ -50,56 +52,19 @@ function carregarTarefas(): ItemRotina[] {
         sessoesConcluidas: x.sessoesConcluidas || 0
       }))
   } catch (err) {
-    console.error('Erro ao carregar tarefas no Pomodoro:', err)
+    console.error('Erro ao carregar tarefas (insight):', err)
     return []
   }
 }
 
 export function ModuloPomodoro(): React.JSX.Element {
-  const { estado, despachar, avisoMonitor, historicoFocosConcluidos } =
-    usePomodoro()
+  const {
+    estado, despachar, avisoMonitor, historicoFocosConcluidos,
+    modoEstudo, definirModoEstudo, cronometro, alternarCronometro, zerarCronometro
+  } = usePomodoro()
   const [mostrandoConfig, setMostrandoConfig] = useState(false)
-  const [tarefas, setTarefas] = useState<ItemRotina[]>([])
-  const [tarefaSelecionada, setTarefaSelecionada] = useState<string | null>(() => {
-    return localStorage.getItem('modo-foco-tarefa-selecionada')
-  })
-  const [dropdownTarefasAberto, setDropdownTarefasAberto] = useState(false)
-
-  // Carregar tarefas no mount e quando o componente ganha foco (simulado por efeito de mount)
-  useEffect(() => {
-    const carregar = (): void => {
-      const t = carregarTarefas()
-      setTarefas(t)
-    }
-    
-    carregar()
-
-    // Escutar mudanças no localStorage (mesmo nesta janela)
-    const handler = (e: Event): void => {
-      if (e.type === 'storage' || e.type === 'tarefas-atualizadas') {
-        carregar()
-      }
-    }
-
-    window.addEventListener('storage', handler)
-    window.addEventListener('tarefas-atualizadas', handler)
-    
-    return () => {
-      window.removeEventListener('storage', handler)
-      window.removeEventListener('tarefas-atualizadas', handler)
-    }
-  }, [])
-
-  // Persistir tarefa selecionada
-  useEffect(() => {
-    if (tarefaSelecionada) {
-      localStorage.setItem('modo-foco-tarefa-selecionada', tarefaSelecionada)
-    } else {
-      localStorage.removeItem('modo-foco-tarefa-selecionada')
-    }
-  }, [tarefaSelecionada])
-
-  const tarefasPendentes = useMemo(() => tarefas.filter(t => !t.concluido), [tarefas])
+  const [insightRascunho, setInsightRascunho] = useState('')
+  const { mostrarToast } = useToasts()
 
   const segmento = segmentoPomodoroUI(estado)
   const duracaoFaseAtual = duracaoSegmentoAtual(estado)
@@ -108,6 +73,15 @@ export function ModuloPomodoro(): React.JSX.Element {
     const p = duracaoFaseAtual > 0 ? estado.restante / duracaoFaseAtual : 1
     return COMPRIMENTO_ANEL * Math.min(1, Math.max(0, p))
   }, [duracaoFaseAtual, estado.restante])
+
+  const tracoCronometroAnel = useMemo(() => {
+    const p = 1 - (cronometro.decorrido % 60) / 60
+    return COMPRIMENTO_ANEL * Math.min(1, Math.max(0, p))
+  }, [cronometro.decorrido])
+
+  const COR_CRONOMETRO = 'hsl(35 65% 58%)'
+  const estaRodando = modoEstudo === 'pomodoro' ? estado.rodando : cronometro.rodando
+  const corBotaoAtivo = modoEstudo === 'pomodoro' ? CORES_TRACO[segmento] : COR_CRONOMETRO
 
   const corModo = CORES_TRACO[segmento]
   const briloClasse = brilhoClasseSegmento(segmento)
@@ -120,21 +94,28 @@ export function ModuloPomodoro(): React.JSX.Element {
 
   const sessoesHoje = historicoFocosConcluidos.length
 
-  // Incrementar sessões concluídas da tarefa selecionada quando um foco termina
-  useEffect(() => {
-    if (sessoesHoje > 0 && tarefaSelecionada) {
-      const lista = carregarTarefas()
-      const index = lista.findIndex((t) => t.id === tarefaSelecionada)
-      if (index !== -1 && !lista[index].concluido) {
-        lista[index].sessoesConcluidas += 1
-        // Se atingiu o estimado, não fazemos nada automático, o usuário marca como concluído
-        localStorage.setItem('modo-foco-rotina-v1', JSON.stringify(lista))
-        setTarefas(lista)
-        // Notificar outros componentes (embora ModuloRotina já salve no storage)
-        window.dispatchEvent(new Event('storage'))
-      }
+  const salvarInsight = (): void => {
+    const texto = insightRascunho.trim()
+    if (!texto) return
+
+    const novaTarefa: ItemRotina = {
+      id: crypto.randomUUID(),
+      texto: `💡 Insight: ${texto}`,
+      concluido: false,
+      prioridade: 'Média',
+      sessoesEstimadas: 1,
+      sessoesConcluidas: 0
     }
-  }, [sessoesHoje])
+
+    const lista = carregarTarefas()
+    localStorage.setItem('modo-foco-rotina-v1', JSON.stringify([...lista, novaTarefa]))
+    setInsightRascunho('')
+    mostrarToast('Insight salvo para revisão posterior!', 'sucesso')
+
+    // Notificar outros componentes
+    window.dispatchEvent(new Event('storage'))
+    window.dispatchEvent(new Event('tarefas-atualizadas'))
+  }
 
   const numeroSessaoAtual = sessoesHoje + 1
   const ordinalSessao =
@@ -143,13 +124,45 @@ export function ModuloPomodoro(): React.JSX.Element {
     ] || `${numeroSessaoAtual}ª`
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="relative flex w-full flex-col items-center">
       {avisoMonitor && (
         <div className="mb-6 w-full max-w-md rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-xs text-rose-900 shadow-sm">
           {avisoMonitor}
         </div>
       )}
 
+      {/* Seletor de Modo de Estudo */}
+      <div className="mb-5 flex justify-center">
+        <div className="flex items-center rounded-2xl border border-borda bg-superficie p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => definirModoEstudo('pomodoro')}
+            className={[
+              'rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200',
+              modoEstudo === 'pomodoro'
+                ? 'bg-primaria/15 text-primaria'
+                : 'text-texto-mudo hover:text-texto'
+            ].join(' ')}
+          >
+            Pomodoro
+          </button>
+          <button
+            type="button"
+            onClick={() => definirModoEstudo('cronometro')}
+            className={[
+              'rounded-xl px-5 py-2.5 text-sm font-semibold transition-all duration-200',
+              modoEstudo === 'cronometro'
+                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                : 'text-texto-mudo hover:text-texto'
+            ].join(' ')}
+          >
+            Stopwatch
+          </button>
+        </div>
+      </div>
+
+      {modoEstudo === 'pomodoro' && (
+      <>
       {/* Cabeçalho: Abas e Configurações */}
       <div className="mb-6 sm:mb-8 flex items-center gap-3">
         <nav className="flex items-center rounded-3xl border border-borda bg-superficie p-1 shadow-sm">
@@ -262,115 +275,106 @@ export function ModuloPomodoro(): React.JSX.Element {
           ))}
         </div>
       </div>
+      </>
+      )}
 
-      {/* Timer Circular */}
-      <div className="relative mb-8 sm:mb-12 flex items-center justify-center">
-        <svg
-          viewBox="0 0 120 120"
-          className="relative z-10 w-[280px] h-[280px] sm:w-[380px] sm:h-[380px]"
-          aria-hidden
-        >
-          <circle
-            cx="60"
-            cy="60"
-            r={RAIO_ANEL}
-            fill="none"
-            stroke="transparent"
-            strokeWidth="5"
-          />
-          <motion.circle
-            cx="60"
-            cy="60"
-            r={RAIO_ANEL}
-            fill="none"
-            stroke={corModo}
-            strokeWidth="5"
-            strokeLinecap="round"
-            transform="rotate(-90 60 60)"
-            strokeDasharray={`${COMPRIMENTO_ANEL} ${COMPRIMENTO_ANEL}`}
-            initial={{ strokeDashoffset: COMPRIMENTO_ANEL }}
-            animate={{ strokeDashoffset: tracoAnel }}
-            transition={{ duration: 1, ease: "linear" }}
-            className="opacity-20"
-          />
-        </svg>
+      {modoEstudo === 'cronometro' && (
+      <p className="mb-4 text-center text-[11px] text-texto-mudo/55">
+        Bloqueio ativo enquanto o stopwatch roda
+      </p>
+      )}
 
-        <div className="absolute inset-0 z-20 flex items-center justify-center">
-          <span
-            className={[
-              'font-display text-[72px] sm:text-[100px] font-bold tabular-nums tracking-tighter text-texto select-none',
-              briloClasse
-            ].join(' ')}
+      {/* Timer (foco visual principal) */}
+      <div className="relative flex w-full flex-col items-center">
+        <div className="relative flex items-center justify-center">
+          <svg
+            viewBox="0 0 120 120"
+            className="relative z-10 w-[300px] h-[300px] sm:w-[400px] sm:h-[400px]"
+            aria-hidden
           >
-            {formatarTempoPomodoro(estado.restante)}
-          </span>
+            <circle
+              cx="60"
+              cy="60"
+              r={RAIO_ANEL}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="4"
+              className="text-borda/30"
+            />
+
+            <motion.circle
+              cx="60"
+              cy="60"
+              r={RAIO_ANEL}
+              fill="none"
+              stroke={modoEstudo === 'pomodoro' ? corModo : COR_CRONOMETRO}
+              strokeWidth="6"
+              strokeLinecap="round"
+              transform="rotate(-90 60 60)"
+              strokeDasharray={`${COMPRIMENTO_ANEL} ${COMPRIMENTO_ANEL}`}
+              initial={{ strokeDashoffset: COMPRIMENTO_ANEL }}
+              animate={{
+                strokeDashoffset: modoEstudo === 'pomodoro' ? tracoAnel : tracoCronometroAnel,
+                opacity: estaRodando ? [0.15, 0.25, 0.15] : 0.15
+              }}
+              transition={{
+                strokeDashoffset: { duration: 1, ease: 'linear' },
+                opacity: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
+              }}
+              style={{ filter: 'blur(4px)' }}
+            />
+
+            <motion.circle
+              cx="60"
+              cy="60"
+              r={RAIO_ANEL}
+              fill="none"
+              stroke={modoEstudo === 'pomodoro' ? corModo : COR_CRONOMETRO}
+              strokeWidth="4"
+              strokeLinecap="round"
+              transform="rotate(-90 60 60)"
+              strokeDasharray={`${COMPRIMENTO_ANEL} ${COMPRIMENTO_ANEL}`}
+              initial={{ strokeDashoffset: COMPRIMENTO_ANEL }}
+              animate={{ strokeDashoffset: modoEstudo === 'pomodoro' ? tracoAnel : tracoCronometroAnel }}
+              transition={{ duration: 1, ease: 'linear' }}
+              className="drop-shadow-sm"
+            />
+          </svg>
+
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center">
+            {modoEstudo === 'pomodoro' ? (
+              <>
+                <span
+                  className={[
+                    'font-display text-[80px] sm:text-[110px] font-bold tabular-nums tracking-tighter text-texto select-none leading-none',
+                    briloClasse
+                  ].join(' ')}
+                >
+                  {formatarTempoPomodoro(estado.restante)}
+                </span>
+                <span className="mt-2 text-xs font-bold uppercase tracking-[0.2em] text-texto-mudo/50">
+                  {estado.fase === 'foco' ? 'Focando' : 'Pausado'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-display text-[80px] sm:text-[110px] font-bold tabular-nums tracking-tighter select-none leading-none text-amber-500/90">
+                  {formatarTempoCronometro(cronometro.decorrido)}
+                </span>
+                <span className="mt-2 text-xs font-bold uppercase tracking-[0.2em] text-texto-mudo/50">
+                  {cronometro.rodando ? 'Estudando' : cronometro.decorrido > 0 ? 'Pausado' : 'Pronto'}
+                </span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Seletor de Tarefa */}
-      <div className="relative mb-8 sm:mb-12">
-        <button
-          type="button"
-          onClick={() => setDropdownTarefasAberto(!dropdownTarefasAberto)}
-          className="flex items-center gap-2 rounded-2xl border border-borda bg-superficie px-5 py-2.5 text-sm font-medium text-texto-mudo transition-all hover:border-borda/80 hover:text-texto shadow-sm"
-        >
-          <span>{tarefas.find(t => t.id === tarefaSelecionada)?.texto || 'Selecionar tarefa'}</span>
-          <svg xmlns="http://www.w3.org/2000/svg" className={['size-4 transition-transform', dropdownTarefasAberto && 'rotate-180'].join(' ')} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        <AnimatePresence>
-          {dropdownTarefasAberto && (
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute bottom-full left-1/2 mb-3 w-64 -translate-x-1/2 overflow-hidden rounded-2xl border border-borda bg-superficie shadow-xl z-50"
-            >
-              <div className="max-h-60 overflow-y-auto p-2 scrollbar-fina">
-                {tarefasPendentes.length === 0 ? (
-                  <p className="p-4 text-center text-xs text-texto-mudo">Nenhuma tarefa pendente</p>
-                ) : (
-                  tarefasPendentes.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setTarefaSelecionada(t.id)
-                        setDropdownTarefasAberto(false)
-                      }}
-                      className={[
-                        'w-full rounded-xl px-4 py-3 text-left text-sm transition-colors',
-                        tarefaSelecionada === t.id ? 'bg-primaria/10 text-primaria font-semibold' : 'hover:bg-fundo text-texto'
-                      ].join(' ')}
-                    >
-                      {t.texto}
-                    </button>
-                  ))
-                )}
-                <div className="border-t border-borda mt-2 pt-2">
-                   <p className="px-4 py-2 text-[10px] uppercase font-bold text-texto-mudo/60">Ações</p>
-                   <button 
-                    onClick={() => {
-                      setTarefaSelecionada(null)
-                      setDropdownTarefasAberto(false)
-                    }}
-                    className="w-full rounded-xl px-4 py-2.5 text-left text-xs text-rose-600 hover:bg-rose-50"
-                   >
-                     Limpar seleção
-                   </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
       {/* Controles Principais */}
-      <div className="flex items-center gap-6">
+      <div className="mt-2 flex items-center gap-6">
         <motion.button
           type="button"
-          onClick={() => despachar({ tipo: 'zerar_fase' })}
+          onClick={() => modoEstudo === 'pomodoro' ? despachar({ tipo: 'zerar_fase' }) : zerarCronometro()}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           className="grid size-14 place-content-center rounded-full border border-borda bg-superficie text-texto-mudo transition-all hover:text-texto shadow-sm"
@@ -382,13 +386,13 @@ export function ModuloPomodoro(): React.JSX.Element {
 
         <motion.button
           type="button"
-          onClick={() => despachar({ tipo: 'alternar_rodando' })}
+          onClick={() => modoEstudo === 'pomodoro' ? despachar({ tipo: 'alternar_rodando' }) : alternarCronometro()}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="grid size-24 place-content-center rounded-[40px] text-white shadow-lg transition-transform"
-          style={{ backgroundColor: corModo }}
+          style={{ backgroundColor: corBotaoAtivo }}
         >
-          {estado.rodando ? (
+          {estaRodando ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="size-10" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z" />
             </svg>
@@ -399,12 +403,54 @@ export function ModuloPomodoro(): React.JSX.Element {
           )}
         </motion.button>
 
-        <div className="size-14" /> {/* Spacer para equilibrar o reset */}
+        <div className="size-14" />
       </div>
 
       {/* Seção Opcional: Listas de Bloqueio */}
       <div className="mt-20 w-full max-w-xl opacity-40 hover:opacity-100 transition-opacity">
         <EditorListasBloqueio recolhivel />
+      </div>
+
+      {/* Brain dump discreto — canto superior direito */}
+      <div
+        className={[
+          'select-app-chrome pointer-events-none fixed z-30 w-[min(13rem,calc(100vw-1.5rem)))]',
+          'right-3 top-[max(0.75rem,env(safe-area-inset-top))] sm:right-4',
+          'md:right-6 md:top-6'
+        ].join(' ')}
+        aria-label="Brain dump"
+      >
+        <div className="pointer-events-auto rounded-xl border border-borda/80 bg-superficie/90 p-2 shadow-md backdrop-blur-sm">
+          <p className="mb-1 px-0.5 text-[9px] font-bold uppercase tracking-wider text-texto-mudo/80">
+            Brain dump
+          </p>
+          <div className="relative">
+            <textarea
+              value={insightRascunho}
+              onChange={(e) => setInsightRascunho(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  salvarInsight()
+                }
+              }}
+              placeholder="Ideia rápida…"
+              rows={2}
+              className="min-h-[3.25rem] w-full resize-none rounded-lg border border-borda/70 bg-fundo/60 px-2.5 py-1.5 text-[11px] leading-snug text-texto outline-none transition placeholder:text-texto-mudo/45 focus:border-primaria/35 focus:ring-1 focus:ring-primaria/15 scrollbar-fina"
+            />
+            <button
+              type="button"
+              onClick={salvarInsight}
+              disabled={!insightRascunho.trim()}
+              className="absolute bottom-1 right-1 grid size-6 place-content-center rounded-md border border-borda/60 bg-superficie text-texto-mudo text-[10px] transition hover:border-primaria/25 hover:text-primaria disabled:pointer-events-none disabled:opacity-0"
+              title="Salvar"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { app, dialog } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { is } from '@electron-toolkit/utils'
 
@@ -8,12 +8,14 @@ export type ResultadoVerificacaoAtualizacao = {
 }
 
 let jaConfigurado = false
+let janelaPrincipal: BrowserWindow | null = null
 
 function estaModoPortable(): boolean {
   return Boolean(process.env.PORTABLE_EXECUTABLE_DIR)
 }
 
-export function configurarAtualizacaoAutomatica(): void {
+export function configurarAtualizacaoAutomatica(janela: BrowserWindow): void {
+  janelaPrincipal = janela
   if (jaConfigurado) return
   jaConfigurado = true
 
@@ -29,19 +31,15 @@ export function configurarAtualizacaoAutomatica(): void {
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.allowDowngrade = false
 
-  autoUpdater.on('update-downloaded', async () => {
-    const { response } = await dialog.showMessageBox({
-      type: 'info',
-      title: 'Atualização do Modo Foco',
-      message: 'Uma nova versão foi baixada.',
-      detail: 'Reiniciar agora para instalar?',
-      buttons: ['Reiniciar e instalar', 'Depois'],
-      defaultId: 0,
-      cancelId: 1
-    })
-    if (response === 0) {
-      app.removeAllListeners('window-all-closed')
-      autoUpdater.quitAndInstall(false, true)
+  autoUpdater.on('update-available', (info) => {
+    console.log('[atualizacao] Versão disponível:', info.version)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[atualizacao] Baixada:', info.version)
+    // Em vez de mostrar dialog imediatamente, avisa o renderer
+    if (janelaPrincipal) {
+      janelaPrincipal.webContents.send('app:atualizacao-baixada', info.version)
     }
   })
 
@@ -52,6 +50,11 @@ export function configurarAtualizacaoAutomatica(): void {
   setTimeout(() => {
     autoUpdater.checkForUpdates().catch((e) => console.error('[atualizacao] verificação inicial', e))
   }, 10_000)
+}
+
+export function instalarAtualizacaoAgora(): void {
+  app.removeAllListeners('window-all-closed')
+  autoUpdater.quitAndInstall(false, true)
 }
 
 export async function verificarAtualizacoesManual(): Promise<ResultadoVerificacaoAtualizacao> {

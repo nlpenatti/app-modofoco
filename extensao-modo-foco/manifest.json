@@ -1,14 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Modo Foco — colaboração",
-  "version": "1.0.5",
+  "version": "1.0.8",
   "description": "Bloqueia páginas de distração no Chrome/Edge quando o app Modo Foco está em sessão de foco (Pomodoro).",
   "permissions": ["tabs", "scripting", "alarms", "webNavigation"],
   "host_permissions": [
-    "http://127.0.0.1:48721/*",
+    "http://127.0.0.1/*",
     "http://*/*",
     "https://*/*"
   ],
+  "action": {
+    "default_title": "Modo Foco — diagnóstico",
+    "default_popup": "popup.html"
+  },
   "background": {
     "service_worker": "background.js"
   },

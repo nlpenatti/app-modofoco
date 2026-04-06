@@ -1,4 +1,6 @@
 import {
+  cronometroSessaoVisivel,
+  formatarTempoCronometro,
   formatarTempoPomodoro,
   pomodoroSessaoVisivel,
   segmentoPomodoroUI,
@@ -75,12 +77,15 @@ function IconeFase({ segmento }: { segmento: SegmentoPomodoroUI }): React.JSX.El
 }
 
 export function IndicadorPomodoroCompacto({ aoAbrirPomodoro }: Props): React.JSX.Element | null {
-  const { estado, despachar } = usePomodoro()
+  const { estado, despachar, modoEstudo, cronometro, alternarCronometro } = usePomodoro()
 
-  if (!pomodoroSessaoVisivel(estado)) return null
+  const visivel = modoEstudo === 'pomodoro'
+    ? pomodoroSessaoVisivel(estado)
+    : cronometroSessaoVisivel(cronometro)
+  if (!visivel) return null
 
-  const segmento = segmentoPomodoroUI(estado)
-  const pausado = !estado.rodando
+  const segmento: SegmentoPomodoroUI = modoEstudo === 'pomodoro' ? segmentoPomodoroUI(estado) : 'foco'
+  const pausado = modoEstudo === 'pomodoro' ? !estado.rodando : !cronometro.rodando
 
   return (
     <div
@@ -98,10 +103,12 @@ export function IndicadorPomodoroCompacto({ aoAbrirPomodoro }: Props): React.JSX
         <IconeFase segmento={segmento} />
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="font-display text-lg font-bold tabular-nums tracking-tight text-texto">
-            {formatarTempoPomodoro(estado.restante)}
+            {modoEstudo === 'pomodoro'
+              ? formatarTempoPomodoro(estado.restante)
+              : formatarTempoCronometro(cronometro.decorrido)}
           </span>
           <span className="text-[11px] font-medium uppercase tracking-wide text-texto-mudo">
-            {ROTULO_SEGMENTO[segmento]}
+            {modoEstudo === 'pomodoro' ? ROTULO_SEGMENTO[segmento] : 'Stopwatch'}
             {pausado ? ' · pausado' : ''}
           </span>
         </span>
@@ -110,13 +117,17 @@ export function IndicadorPomodoroCompacto({ aoAbrirPomodoro }: Props): React.JSX
         type="button"
         onClick={(e) => {
           e.stopPropagation()
-          despachar({ tipo: 'alternar_rodando' })
+          if (modoEstudo === 'pomodoro') {
+            despachar({ tipo: 'alternar_rodando' })
+          } else {
+            alternarCronometro()
+          }
         }}
-        title={estado.rodando ? 'Pausar timer' : 'Retomar timer'}
-        aria-label={estado.rodando ? 'Pausar timer' : 'Retomar timer'}
+        title={pausado ? 'Retomar timer' : 'Pausar timer'}
+        aria-label={pausado ? 'Retomar timer' : 'Pausar timer'}
         className="flex shrink-0 items-center border-s border-borda bg-superficie-elevada/80 px-3 transition hover-elevate focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primaria/35"
       >
-        {estado.rodando ? (
+        {!pausado ? (
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="size-5 text-texto"

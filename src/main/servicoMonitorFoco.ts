@@ -132,7 +132,18 @@ async function verificarUmaVez(): Promise<void> {
   }
 }
 
+let focoAtivoGlobal = false
+
+export function definirFocoAtivoParaBloqueioFechamento(ativo: boolean): void {
+  focoAtivoGlobal = ativo
+}
+
+export function estaFocoAtivoParaBloqueioFechamento(): boolean {
+  return focoAtivoGlobal
+}
+
 export function definirMonitorFocoAtivo(ativo: boolean): { ok: boolean; motivo?: string } {
+  definirFocoAtivoParaBloqueioFechamento(ativo)
   if (process.platform !== 'win32') {
     return { ok: false, motivo: 'Monitoramento de janela só está disponível no Windows.' }
   }

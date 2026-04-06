@@ -7,6 +7,7 @@ export type AbaPainel = 'pomodoro' | 'rotina' | 'estatisticas' | 'configuracoes'
 type Props = {
   abaAtiva: AbaPainel
   aoMudarAba: (aba: AbaPainel) => void
+  versaoNova?: string | null
 }
 
 const abas: { id: AbaPainel; rotulo: string; icone: React.ReactNode }[] = [
@@ -97,10 +98,14 @@ const abas: { id: AbaPainel; rotulo: string; icone: React.ReactNode }[] = [
   }
 ]
 
-export function Sidebar({ abaAtiva, aoMudarAba }: Props): React.JSX.Element {
+export function Sidebar({ abaAtiva, aoMudarAba, versaoNova }: Props): React.JSX.Element {
+  const instalarAgora = (): void => {
+    window.api.instalarAtualizacao()
+  }
+
   return (
     <aside className="select-app-chrome hidden h-full w-[6.25rem] shrink-0 flex-col border-e border-borda bg-superficie/90 backdrop-blur-md md:flex">
-      <div className="flex flex-col items-center px-1.5 pb-4 pt-6">
+      <div className="flex h-full flex-col items-center px-1.5 pb-4 pt-6">
         <div
           className="grid size-20 place-content-center"
           title="Modo Foco"
@@ -142,12 +147,48 @@ export function Sidebar({ abaAtiva, aoMudarAba }: Props): React.JSX.Element {
             )
           })}
         </nav>
+
+        {/* Botão de Atualização Bonitinho */}
+        <div className="mt-auto flex w-full flex-col items-center gap-4">
+          {versaoNova && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              type="button"
+              onClick={instalarAgora}
+              className="group relative flex size-14 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-primaria/10 text-primaria transition-all hover:bg-primaria hover:text-white"
+              title={`Nova versão ${versaoNova} pronta para instalar!`}
+            >
+              <motion.div
+                animate={{ y: [0, -2, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </motion.div>
+              <span className="text-[8px] font-bold uppercase tracking-tighter">Update</span>
+              
+              {/* Dot de notificação */}
+              <span className="absolute right-3 top-3 flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primaria opacity-75 group-hover:bg-white"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primaria group-hover:bg-white"></span>
+              </span>
+            </motion.button>
+          )}
+
+          <div className="h-px w-8 bg-borda/40" />
+        </div>
       </div>
     </aside>
   )
 }
 
-export function NavegacaoInferiorMobile({ abaAtiva, aoMudarAba }: Props): React.JSX.Element {
+export function NavegacaoInferiorMobile({ abaAtiva, aoMudarAba, versaoNova }: Props): React.JSX.Element {
+  const instalarAgora = (): void => {
+    window.api.instalarAtualizacao()
+  }
+
   return (
     <nav
       className="select-app-chrome fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around border-t border-borda bg-superficie/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-md md:hidden"
@@ -179,6 +220,25 @@ export function NavegacaoInferiorMobile({ abaAtiva, aoMudarAba }: Props): React.
           </button>
         )
       })}
+
+      {versaoNova && (
+        <button
+          type="button"
+          onClick={instalarAgora}
+          className="flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 transition active:scale-95 text-primaria"
+        >
+          <span className="relative flex size-10 items-center justify-center rounded-2xl bg-primaria/20">
+             <svg xmlns="http://www.w3.org/2000/svg" className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+             </svg>
+             <span className="absolute -right-1 -top-1 flex h-3 w-3">
+               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primaria opacity-75"></span>
+               <span className="relative inline-flex h-3 w-3 rounded-full bg-primaria border-2 border-superficie"></span>
+             </span>
+          </span>
+          <span className="text-[9px] font-bold uppercase">Update</span>
+        </button>
+      )}
     </nav>
   )
 }

@@ -53,8 +53,9 @@ const passos = [
     corpo: (
       <div className="space-y-3 text-sm leading-relaxed text-texto-mudo">
         <p>
-          Com o timer na fase <strong className="text-texto">foco</strong> e o cronômetro{' '}
-          <strong className="text-texto">rodando</strong>, o app liga o monitor de distrações.
+          Com o Pomodoro na fase <strong className="text-texto">foco</strong> ou o{' '}
+          <strong className="text-texto">stopwatch</strong> <strong className="text-texto">rodando</strong>,
+          o app liga o monitor de distrações.
         </p>
         <ul className="space-y-2">
           <li className="flex gap-2">

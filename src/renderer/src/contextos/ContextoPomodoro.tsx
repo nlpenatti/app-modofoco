@@ -19,6 +19,13 @@ export type FasePomodoro = 'foco' | 'pausa'
 
 export type TipoPausaPomodoro = 'curta' | 'longa'
 
+export type ModoEstudo = 'pomodoro' | 'cronometro'
+
+export type EstadoCronometro = {
+  decorrido: number
+  rodando: boolean
+}
+
 export type SegmentoPomodoroUI = 'foco' | 'pausa_curta' | 'pausa_longa'
 
 export type EstadoPomodoro = {
@@ -64,6 +71,8 @@ const estadoInicial: EstadoPomodoro = {
 
 const CHAVE_ARMAZENAMENTO_POMODORO = 'modo-foco-pomodoro-v1'
 const CHAVE_ARMAZENAMENTO_REGISTROS = 'modo-foco-registros-atividade-v1'
+const CHAVE_ARMAZENAMENTO_CRONOMETRO = 'modo-foco-cronometro-v1'
+const CHAVE_ARMAZENAMENTO_MODO_ESTUDO = 'modo-foco-modo-estudo-v1'
 const SEGUNDOS_MAXIMO_RECUPERACAO = 48 * 3600
 
 const MAX_REGISTROS = 50
@@ -189,6 +198,48 @@ function salvarEstadoPomodoro(estado: EstadoPomodoro): void {
   localStorage.setItem(CHAVE_ARMAZENAMENTO_POMODORO, JSON.stringify(blob))
 }
 
+type BlobPersistenciaCronometro = {
+  v: 1
+  decorrido: number
+  rodando: boolean
+  salvoEm: number
+}
+
+function hidratarEstadoCronometro(): EstadoCronometro {
+  try {
+    const json = localStorage.getItem(CHAVE_ARMAZENAMENTO_CRONOMETRO)
+    if (!json) return { decorrido: 0, rodando: false }
+    const blob = JSON.parse(json) as BlobPersistenciaCronometro
+    if (blob.v !== 1) return { decorrido: 0, rodando: false }
+    const decorrido =
+      typeof blob.decorrido === 'number' ? Math.max(0, Math.floor(blob.decorrido)) : 0
+    if (!blob.rodando) return { decorrido, rodando: false }
+    const delta = Math.max(0, Math.floor((Date.now() - blob.salvoEm) / 1000))
+    return { decorrido: decorrido + delta, rodando: true }
+  } catch {
+    return { decorrido: 0, rodando: false }
+  }
+}
+
+function salvarEstadoCronometro(crono: EstadoCronometro): void {
+  const blob: BlobPersistenciaCronometro = {
+    v: 1,
+    decorrido: crono.decorrido,
+    rodando: crono.rodando,
+    salvoEm: Date.now()
+  }
+  localStorage.setItem(CHAVE_ARMAZENAMENTO_CRONOMETRO, JSON.stringify(blob))
+}
+
+function carregarModoEstudo(): ModoEstudo {
+  try {
+    const v = localStorage.getItem(CHAVE_ARMAZENAMENTO_MODO_ESTUDO)
+    return v === 'cronometro' ? 'cronometro' : 'pomodoro'
+  } catch {
+    return 'pomodoro'
+  }
+}
+
 function reducerPomodoro(estado: EstadoPomodoro, acao: AcaoPomodoro): EstadoPomodoro {
   switch (acao.tipo) {
     case 'tick': {
@@ -289,6 +340,16 @@ export function formatarTempoPomodoro(segundos: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+export function formatarTempoCronometro(segundos: number): string {
+  const h = Math.floor(segundos / 3600)
+  const m = Math.floor((segundos % 3600) / 60)
+  const s = segundos % 60
+  if (h > 0) {
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 type ValorContextoPomodoro = {
   estado: EstadoPomodoro
   despachar: React.Dispatch<AcaoPomodoro>
@@ -296,6 +357,11 @@ type ValorContextoPomodoro = {
   registrosAtividade: LinhaRegistroAtividade[]
   historicoFocosConcluidos: EntradaHistoricoFoco[]
   limparHistoricoFocos: () => void
+  modoEstudo: ModoEstudo
+  definirModoEstudo: (modo: ModoEstudo) => void
+  cronometro: EstadoCronometro
+  alternarCronometro: () => void
+  zerarCronometro: () => void
 }
 
 const ContextoPomodoro = createContext<ValorContextoPomodoro | null>(null)
@@ -310,8 +376,14 @@ export function ProvedorPomodoro({ children }: { children: ReactNode }): React.J
     EntradaHistoricoFoco[]
   >(() => carregarHistoricoFocosConcluidos())
   const refEstadoAnterior = useRef<EstadoPomodoro | null>(null)
+  const [modoEstudo, setModoEstudoInterno] = useState<ModoEstudo>(carregarModoEstudo)
+  const [cronometro, setCronometro] = useState<EstadoCronometro>(hidratarEstadoCronometro)
+  const refModoEstudo = useRef(modoEstudo)
+  refModoEstudo.current = modoEstudo
 
-  const monitorDeveRodar = estado.rodando && estado.fase === 'foco'
+  const monitorDeveRodar =
+    (modoEstudo === 'pomodoro' && estado.rodando && estado.fase === 'foco') ||
+    (modoEstudo === 'cronometro' && cronometro.rodando)
 
   const aplicarMonitorFoco = useCallback(async (ativo: boolean): Promise<void> => {
     const resultado = await window.api.definirMonitorFoco(ativo)
@@ -325,6 +397,32 @@ export function ProvedorPomodoro({ children }: { children: ReactNode }): React.J
       setAvisoMonitor(null)
     }
   }, [])
+
+  // Efeito para o Modo Foco Profundo (Deep Work)
+  useEffect(() => {
+    if (monitorDeveRodar) {
+      const deveMinimizar = localStorage.getItem('config-foco-profundo-minimizar') === '1'
+      const deveAtivarDND = localStorage.getItem('config-foco-profundo-dnd') === '1'
+      const allowlist = (localStorage.getItem('config-foco-profundo-allowlist') || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+
+      if (deveMinimizar) {
+        void window.api.minimizarJanelasExceto(allowlist)
+      }
+
+      if (deveAtivarDND) {
+        void window.api.definirNaoPerturbe(true)
+      }
+    } else {
+      // Quando sair do foco (pausa ou stop), desativa o DND se estiver configurado
+      const deveAtivarDND = localStorage.getItem('config-foco-profundo-dnd') === '1'
+      if (deveAtivarDND) {
+        void window.api.definirNaoPerturbe(false)
+      }
+    }
+  }, [monitorDeveRodar])
 
   useEffect(() => {
     void aplicarMonitorFoco(monitorDeveRodar)
@@ -354,7 +452,11 @@ export function ProvedorPomodoro({ children }: { children: ReactNode }): React.J
   useEffect(() => {
     return window.api.aoAtalhoGlobalPomodoro((payload) => {
       if (payload.acao === 'alternar_rodando') {
-        despachar({ tipo: 'alternar_rodando' })
+        if (refModoEstudo.current === 'cronometro') {
+          setCronometro((prev) => ({ ...prev, rodando: !prev.rodando }))
+        } else {
+          despachar({ tipo: 'alternar_rodando' })
+        }
       }
     })
   }, [])
@@ -387,6 +489,24 @@ export function ProvedorPomodoro({ children }: { children: ReactNode }): React.J
     salvarEstadoPomodoro(estado)
   }, [estado])
 
+  useEffect(() => {
+    if (modoEstudo === 'cronometro') {
+      window.api.sincronizarPomodoroComBridge({
+        restante: cronometro.rodando ? 9999 : 0,
+        fase: 'foco',
+        tipoPausa: 'curta',
+        rodando: cronometro.rodando
+      })
+    } else {
+      window.api.sincronizarPomodoroComBridge({
+        restante: estado.restante,
+        fase: estado.fase,
+        tipoPausa: estado.tipoPausa,
+        rodando: estado.rodando
+      })
+    }
+  }, [modoEstudo, estado, cronometro])
+
   const limparHistoricoFocos = useCallback((): void => {
     limparArmazenamentoHistoricoFocos()
     localStorage.removeItem(CHAVE_ARMAZENAMENTO_REGISTROS)
@@ -394,13 +514,57 @@ export function ProvedorPomodoro({ children }: { children: ReactNode }): React.J
     setRegistrosAtividade([])
   }, [])
 
+  // --- Stopwatch: tick, persistência, modo ---
+
+  useEffect(() => {
+    if (!cronometro.rodando) return
+    const id = setInterval(() => {
+      setCronometro((prev) => ({ ...prev, decorrido: prev.decorrido + 1 }))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [cronometro.rodando])
+
+  useEffect(() => {
+    salvarEstadoCronometro(cronometro)
+  }, [cronometro])
+
+  useEffect(() => {
+    localStorage.setItem(CHAVE_ARMAZENAMENTO_MODO_ESTUDO, modoEstudo)
+  }, [modoEstudo])
+
+  const definirModoEstudo = useCallback(
+    (modo: ModoEstudo): void => {
+      if (modo === modoEstudo) return
+      if (estado.rodando) despachar({ tipo: 'alternar_rodando' })
+      if (cronometro.rodando) setCronometro((prev) => ({ ...prev, rodando: false }))
+      setModoEstudoInterno(modo)
+    },
+    [modoEstudo, estado.rodando, cronometro.rodando]
+  )
+
+  const alternarCronometro = useCallback((): void => {
+    setCronometro((prev) => ({ ...prev, rodando: !prev.rodando }))
+  }, [])
+
+  const zerarCronometro = useCallback((): void => {
+    if (cronometro.decorrido >= 60) {
+      setHistoricoFocosConcluidos(acrescentarFocoConcluidoNoHistorico(cronometro.decorrido))
+    }
+    setCronometro({ decorrido: 0, rodando: false })
+  }, [cronometro.decorrido])
+
   const valor: ValorContextoPomodoro = {
     estado,
     despachar,
     avisoMonitor,
     registrosAtividade,
     historicoFocosConcluidos,
-    limparHistoricoFocos
+    limparHistoricoFocos,
+    modoEstudo,
+    definirModoEstudo,
+    cronometro,
+    alternarCronometro,
+    zerarCronometro
   }
 
   return <ContextoPomodoro.Provider value={valor}>{children}</ContextoPomodoro.Provider>
@@ -417,4 +581,8 @@ export function usePomodoro(): ValorContextoPomodoro {
 /** Indicador flutuante: sessão em andamento (rodando ou pausado no meio do ciclo). */
 export function pomodoroSessaoVisivel(estado: EstadoPomodoro): boolean {
   return !(estado.fase === 'foco' && estado.restante === estado.duracaoFoco && !estado.rodando)
+}
+
+export function cronometroSessaoVisivel(crono: EstadoCronometro): boolean {
+  return crono.decorrido > 0 || crono.rodando
 }

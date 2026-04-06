@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Foco nos Estudos — Modo Foco</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Paleta Pastel Azulada e Mais Profunda */
+      --bg-main: #1e293b; /* Azul ardósia escuro */
+      --accent-color: #60a5fa; /* Azul pastel vibrante */
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --glow-color: rgba(96, 165, 250, 0.2);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #0f172a; /* Fundo base bem escuro */
+      color: var(--text-primary);
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      padding: 2rem;
+      overflow: hidden;
+    }
+
+    /* Background com gradiente azulado profundo */
+    .bg-gradient {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: radial-gradient(circle at top left, #1e293b 0%, #0f172a 100%);
+    }
+
+    /* Blobs decorativos azulados em tons pastel */
+    .bg-decoration {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      filter: blur(120px);
+      opacity: 0.6;
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+    }
+    .blob-1 {
+      width: 60vw;
+      height: 60vw;
+      background: #1e3a8a; /* Azul marinho profundo */
+      top: -20%;
+      left: -10%;
+    }
+    .blob-2 {
+      width: 50vw;
+      height: 50vw;
+      background: #1e40af; /* Azul real profundo */
+      bottom: -10%;
+      right: -10%;
+    }
+    .blob-3 {
+      width: 40vw;
+      height: 40vw;
+      background: #312e81; /* Indigo profundo */
+      top: 20%;
+      right: 15%;
+    }
+
+    .message-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.75rem;
+      text-align: center;
+      animation: fadeIn 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+      width: 100%;
+      max-width: fit-content;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.98); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .logo-img {
+      width: 200px;
+      height: 200px;
+      object-fit: contain;
+      display: block;
+    }
+
+    h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      color: #ffffff;
+    }
+
+    .highlight {
+      color: var(--accent-color);
+      text-shadow: 0 0 20px var(--glow-color);
+    }
+
+    .tempo-restante {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.25rem;
+    }
+
+    .tempo-restante-rotulo {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      opacity: 0.85;
+    }
+
+    .tempo-restante-valor {
+      font-size: 2.75rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.06em;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    footer {
+      position: fixed;
+      bottom: 2rem;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      opacity: 0.5;
+      transition: opacity 0.3s;
+    }
+    
+    footer:hover {
+      opacity: 1;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 100px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+    }
+
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent-color);
+      border-radius: 50%;
+      position: relative;
+    }
+    .pulse-dot::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      background: var(--accent-color);
+      border-radius: inherit;
+      animation: ripple 2.5s infinite;
+      opacity: 0.4;
+    }
+
+    @keyframes ripple {
+      0% { transform: scale(1); opacity: 0.4; }
+      100% { transform: scale(4); opacity: 0; }
+    }
+
+    @media (max-width: 900px) {
+      .message-container {
+        gap: 1.25rem;
+      }
+      h1 {
+        font-size: 2.25rem;
+      }
+      .logo-img {
+        width: 140px;
+        height: 140px;
+      }
+      .tempo-restante-valor {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-gradient"></div>
+  <div class="bg-decoration">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <div class="message-container">
+    <img src="logo.png" alt="Logo Modo Foco" class="logo-img">
+    <h1>Hora de focar nos <span class="highlight">estudos!</span></h1>
+    <div class="tempo-restante" aria-live="polite">
+      <span class="tempo-restante-rotulo" id="tempo-restante-rotulo">Tempo no app</span>
+      <span class="tempo-restante-valor" id="tempo-restante-valor">—</span>
+    </div>
+  </div>
+
+  <footer>
+    <div class="status-badge">
+      <span class="pulse-dot"></span>
+      Sessão Ativa
+    </div>
+  </footer>
+  <script>
+    (function () {
+      var CAMINHO_API = '/api/foco'
+      var config = { port: 48721, token: '' }
+      var elRotulo = document.getElementById('tempo-restante-rotulo')
+      var elValor = document.getElementById('tempo-restante-valor')
+
+      function carregarConfig() {
+        var url = chrome.runtime.getURL('bridge-config.json') + '?_=' + Date.now()
+        return fetch(url, { cache: 'no-store' })
+          .then(function (r) {
+            return r.json()
+          })
+          .then(function (j) {
+            var p = typeof j.port === 'number' && j.port > 0 && j.port < 65536 ? Math.floor(j.port) : 48721
+            var t = typeof j.token === 'string' ? j.token.trim() : ''
+            config.port = p
+            config.token = t
+          })
+          .catch(function () {
+            /* mantém último config */
+          })
+      }
+
+      function urlApi() {
+        return 'http://127.0.0.1:' + config.port + CAMINHO_API
+      }
+
+      function opcoesFetch() {
+        var h = {}
+        if (config.token) h['Authorization'] = 'Bearer ' + config.token
+        return { cache: 'no-store', headers: h }
+      }
+
+      function formatarMmSs(seg) {
+        var s = Math.max(0, Math.floor(Number(seg) || 0))
+        var m = Math.floor(s / 60)
+        var r = s % 60
+        return (m < 10 ? '0' : '') + m + ':' + (r < 10 ? '0' : '') + r
+      }
+
+      function rotuloPomodoro(p) {
+        if (!p || typeof p.restanteSegundos !== 'number') return 'Tempo no app'
+        if (p.fase === 'foco') return p.rodando ? 'Foco restante' : 'Foco (pausado)'
+        return p.tipoPausa === 'longa' ? 'Pausa longa' : 'Pausa curta'
+      }
+
+      function atualizar() {
+        var recarregar = config.token ? Promise.resolve() : carregarConfig()
+        return recarregar.then(function () {
+          if (!config.token) {
+            if (elRotulo) elRotulo.textContent = 'Tempo no app'
+            if (elValor) elValor.textContent = '—'
+            return
+          }
+          return fetch(urlApi(), opcoesFetch())
+            .then(function (r) {
+              if (r.status === 401) {
+                return carregarConfig().then(function () {
+                  return fetch(urlApi(), opcoesFetch())
+                })
+              }
+              return r
+            })
+            .then(function (r) {
+              if (!r || !r.ok) throw new Error('http')
+              return r.json()
+            })
+            .then(function (j) {
+              var p = j && j.pomodoro
+              if (elRotulo) elRotulo.textContent = rotuloPomodoro(p)
+              if (elValor) {
+                if (p && typeof p.restanteSegundos === 'number') {
+                  elValor.textContent = formatarMmSs(p.restanteSegundos)
+                } else {
+                  elValor.textContent = '—'
+                }
+              }
+            })
+            .catch(function () {
+              if (elRotulo) elRotulo.textContent = 'Tempo no app'
+              if (elValor) elValor.textContent = '—'
+            })
+        })
+      }
+
+      carregarConfig().then(function () {
+        atualizar()
+        setInterval(atualizar, 1000)
+      })
+    })()
+  </script>
+</body>
+</html>

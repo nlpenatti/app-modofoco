@@ -5,6 +5,7 @@ import { ModuloConfiguracoes } from './componentes/ModuloConfiguracoes'
 import { ModuloEstatisticas } from './componentes/ModuloEstatisticas'
 import { ModuloPomodoro } from './componentes/ModuloPomodoro'
 import { ModuloRotina } from './componentes/ModuloRotina'
+import { GerenciadorEventosGlobais } from './componentes/GerenciadorEventosGlobais'
 import {
   CHAVE_ONBOARDING_CONCLUIDO,
   OnboardingPrimeiraAbertura
@@ -17,6 +18,9 @@ import { ProvedorToasts } from './contextos/ContextoToasts'
 function App(): React.JSX.Element {
   const [abaAtiva, setAbaAtiva] = useState<AbaPainel>('pomodoro')
   const [alertaDistraicaoAberto, setAlertaDistraicaoAberto] = useState(false)
+  const [ultimoIndicador, setUltimoIndicador] = useState<string | undefined>()
+  const [ultimoTituloJanela, setUltimoTituloJanela] = useState<string | undefined>()
+  const [versaoNovaDisponivel, setVersaoNovaDisponivel] = useState<string | null>(null)
   const [mostrarOnboarding, setMostrarOnboarding] = useState(() => {
     try {
       return localStorage.getItem(CHAVE_ONBOARDING_CONCLUIDO) !== '1'
@@ -26,22 +30,38 @@ function App(): React.JSX.Element {
   })
 
   useEffect(() => {
-    return window.api.aoAtividadeMonitor((evento) => {
-      if (evento.tipo !== 'distraction_detected') return
-      setAlertaDistraicaoAberto(true)
+    // Escutar atualizações baixadas
+    const descadastrarAtualizacao = window.api.aoAtualizacaoBaixada((versao) => {
+      setVersaoNovaDisponivel(versao)
     })
+
+    return () => {
+      descadastrarAtualizacao()
+    }
   }, [])
 
   const fecharOnboarding = (): void => {
     setMostrarOnboarding(false)
   }
 
+  const aoDetectarDistracao = (indicador?: string, tituloJanela?: string): void => {
+    setUltimoIndicador(indicador)
+    setUltimoTituloJanela(tituloJanela)
+    setAlertaDistraicaoAberto(true)
+  }
+
   return (
     <ProvedorTema>
       <ProvedorToasts>
         <ProvedorPomodoro>
+          <GerenciadorEventosGlobais aoDetectarDistracao={aoDetectarDistracao} />
+          
           <div className="flex h-screen w-screen overflow-hidden bg-fundo text-texto">
-            <Sidebar abaAtiva={abaAtiva} aoMudarAba={setAbaAtiva} />
+            <Sidebar 
+              abaAtiva={abaAtiva} 
+              aoMudarAba={setAbaAtiva} 
+              versaoNova={versaoNovaDisponivel}
+            />
 
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
               <div className={[
@@ -49,7 +69,11 @@ function App(): React.JSX.Element {
               ].join(' ')}>
                 <div className={[
                   'mx-auto w-full',
-                  (abaAtiva === 'pomodoro' || abaAtiva === 'rotina') ? 'max-w-4xl' : 'max-w-3xl',
+                  abaAtiva === 'pomodoro' || abaAtiva === 'rotina'
+                    ? 'max-w-4xl'
+                    : abaAtiva === 'configuracoes'
+                      ? 'max-w-none'
+                      : 'max-w-3xl',
                   abaAtiva === 'pomodoro' ? 'my-auto' : ''
                 ].join(' ')}>
                   {abaAtiva === 'pomodoro' && <ModuloPomodoro />}
@@ -60,10 +84,18 @@ function App(): React.JSX.Element {
               </div>
             </main>
 
-            <NavegacaoInferiorMobile abaAtiva={abaAtiva} aoMudarAba={setAbaAtiva} />
+            <NavegacaoInferiorMobile 
+              abaAtiva={abaAtiva} 
+              aoMudarAba={setAbaAtiva} 
+              versaoNova={versaoNovaDisponivel} 
+            />
 
             {alertaDistraicaoAberto && (
-              <AlertaDistraicao aoFechar={() => setAlertaDistraicaoAberto(false)} />
+              <AlertaDistraicao 
+                indicador={ultimoIndicador}
+                tituloJanela={ultimoTituloJanela}
+                aoFechar={() => setAlertaDistraicaoAberto(false)} 
+              />
             )}
 
             {mostrarOnboarding ? <OnboardingPrimeiraAbertura aoConcluir={fecharOnboarding} /> : null}

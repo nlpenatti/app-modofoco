@@ -1,11 +1,16 @@
 /**
  * Consulta o app Modo Foco (Electron) em localhost e injeta "Site bloqueado" nas abas elegíveis.
  * Usa webNavigation para SPAs (ex.: Instagram) onde a URL muda sem recarregar a página inteira.
- * WebSocket em /api/foco/ws: o app empurra estado ao ligar/desligar foco (sem esperar o alarme de 1 min).
+ * WebSocket em /api/foco/ws?token=…: o app empurra estado ao ligar/desligar foco.
+ *
+ * Porta e token vêm de bridge-config.json (o app reescreve o arquivo ao iniciar).
  */
 
-const API_FOCO = 'http://127.0.0.1:48721/api/foco'
-const WS_FOCO = 'ws://127.0.0.1:48721/api/foco/ws'
+const CAMINHO_HTTP_FOCO = '/api/foco'
+const CAMINHO_WS_FOCO = '/api/foco/ws'
+
+/** @type {{ port: number, token: string }} */
+let configBridge = { port: 48721, token: '' }
 
 /** @type {{ focoAtivo: boolean, hosts: string[], prefixosUrl: string[] }} */
 let estadoCache = { focoAtivo: false, hosts: [], prefixosUrl: [] }
@@ -16,16 +21,98 @@ let buscaApiEmCurso = null
 /** Backoff para reconectar o push quando o app estiver fechado. */
 let proximaTentativaWsMs = 1000
 
+/** Instância WebSocket atual (para fechar ao recarregar config). */
+let socketWsAtual = null
+/** Evita agendar reconexão quando fechamos o WS de propósito (troca de token/porta). */
+let ignorarProximoCloseWs = false
+
+async function carregarConfigBridgeDoArquivo() {
+  // Query evita cache do Chrome sobre o ficheiro no pacote da extensão (o app atualiza no disco).
+  const url = chrome.runtime.getURL('bridge-config.json') + '?_=' + Date.now()
+  const r = await fetch(url, { cache: 'no-store' })
+  if (!r.ok) throw new Error(String(r.status))
+  const j = await r.json()
+  const port =
+    typeof j.port === 'number' && Number.isFinite(j.port) && j.port > 0 && j.port < 65536
+      ? Math.floor(j.port)
+      : 48721
+  const token = typeof j.token === 'string' ? j.token.trim() : ''
+  return { port, token }
+}
+
+async function garantirConfigBridge() {
+  try {
+    configBridge = await carregarConfigBridgeDoArquivo()
+  } catch {
+    configBridge = { port: 48721, token: '' }
+  }
+}
+
+function urlApiFoco() {
+  return `http://127.0.0.1:${configBridge.port}${CAMINHO_HTTP_FOCO}`
+}
+
+function urlWsFoco() {
+  const t = encodeURIComponent(configBridge.token)
+  return `ws://127.0.0.1:${configBridge.port}${CAMINHO_WS_FOCO}?token=${t}`
+}
+
+/** @param {RequestInit} [extra] */
+function opcoesFetchApi(extra = {}) {
+  const headers = { ...(extra.headers || {}) }
+  if (configBridge.token) {
+    headers['Authorization'] = `Bearer ${configBridge.token}`
+  }
+  return { cache: 'no-store', ...extra, headers }
+}
+
 /**
  * @param {unknown} j
  */
 function aplicarPayloadApi(j) {
   if (!j || typeof j !== 'object') return
   const o = /** @type {{ focoAtivo?: unknown, hosts?: unknown, prefixosUrl?: unknown }} */ (j)
+
+  const focoAnterior = estadoCache.focoAtivo
   estadoCache = {
     focoAtivo: Boolean(o.focoAtivo),
     hosts: Array.isArray(o.hosts) ? o.hosts : [],
     prefixosUrl: Array.isArray(o.prefixosUrl) ? o.prefixosUrl : []
+  }
+
+  if (focoAnterior && !estadoCache.focoAtivo) {
+    void restaurarTodasAbasBloqueadas()
+  }
+}
+
+function urlRestauracaoSegura(href) {
+  try {
+    const u = new URL(href)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    return u.href
+  } catch {
+    return null
+  }
+}
+
+async function restaurarTodasAbasBloqueadas() {
+  const tabs = await chrome.tabs.query({})
+  const blockedPrefix = chrome.runtime.getURL('blocked.html')
+  for (const t of tabs) {
+    if (t.id != null && t.url && t.url.startsWith(blockedPrefix)) {
+      try {
+        const u = new URL(t.url)
+        const originalUrl = u.searchParams.get('url')
+        const seguro = originalUrl ? urlRestauracaoSegura(originalUrl) : null
+        if (seguro) {
+          await chrome.tabs.update(t.id, { url: seguro })
+        } else {
+          await chrome.tabs.reload(t.id)
+        }
+      } catch {
+        /* ignora */
+      }
+    }
   }
 }
 
@@ -35,22 +122,52 @@ function agendarReconectarPushFoco() {
   setTimeout(conectarPushWebSocketFoco, atraso)
 }
 
-function conectarPushWebSocketFoco() {
+function fecharWsSeHouver() {
+  if (!socketWsAtual) return
+  ignorarProximoCloseWs = true
+  const anterior = socketWsAtual
+  socketWsAtual = null
   try {
-    const ws = new WebSocket(WS_FOCO)
+    anterior.close()
+  } catch {
+    /* ignora */
+  }
+}
+
+async function conectarPushWebSocketFoco() {
+  await garantirConfigBridge()
+  if (!configBridge.token) {
+    agendarReconectarPushFoco()
+    return
+  }
+
+  try {
+    fecharWsSeHouver()
+    const ws = new WebSocket(urlWsFoco())
+    socketWsAtual = ws
     ws.onopen = () => {
+      ignorarProximoCloseWs = false
+      console.log('[Modo Foco] WebSocket conectado com sucesso!')
       proximaTentativaWsMs = 1000
     }
     ws.onmessage = (ev) => {
       try {
         const j = JSON.parse(ev.data)
+        console.log('[Modo Foco] Novo estado recebido via WebSocket:', j.focoAtivo ? 'ATIVO' : 'INATIVO')
         aplicarPayloadApi(j)
         void revarrerTodasAbasComRegras()
-      } catch {
-        /* ignora */
+      } catch (err) {
+        console.error('[Modo Foco] Erro ao processar mensagem WS:', err)
       }
     }
     ws.onclose = () => {
+      if (socketWsAtual !== ws) return
+      socketWsAtual = null
+      if (ignorarProximoCloseWs) {
+        ignorarProximoCloseWs = false
+        return
+      }
+      console.warn('[Modo Foco] WebSocket fechado. Tentando reconectar...')
       agendarReconectarPushFoco()
     }
     ws.onerror = () => {
@@ -60,7 +177,8 @@ function conectarPushWebSocketFoco() {
         /* ignora */
       }
     }
-  } catch {
+  } catch (err) {
+    console.error('[Modo Foco] Falha fatal ao criar WebSocket:', err)
     agendarReconectarPushFoco()
   }
 }
@@ -103,8 +221,23 @@ function enderecoDeveSerBloqueado(href, prefixosUrl, hosts) {
 async function atualizarEstadoDoApp() {
   if (!buscaApiEmCurso) {
     buscaApiEmCurso = (async () => {
+      await garantirConfigBridge()
+      if (!configBridge.token) {
+        estadoCache = { focoAtivo: false, hosts: [], prefixosUrl: [] }
+        return
+      }
       try {
-        const r = await fetch(API_FOCO, { cache: 'no-store' })
+        const r = await fetch(urlApiFoco(), opcoesFetchApi())
+        if (r.status === 401) {
+          await garantirConfigBridge()
+          fecharWsSeHouver()
+          void conectarPushWebSocketFoco()
+          const r2 = await fetch(urlApiFoco(), opcoesFetchApi())
+          if (!r2.ok) throw new Error(String(r2.status))
+          const j2 = await r2.json()
+          aplicarPayloadApi(j2)
+          return
+        }
         if (!r.ok) throw new Error(String(r.status))
         const j = await r.json()
         aplicarPayloadApi(j)
@@ -133,15 +266,15 @@ async function bloquearAbaSeAplicavel(tabId) {
   }
   if (!tab.url) return
 
+  if (tab.url.includes(chrome.runtime.id) && tab.url.includes('blocked.html')) return
+
   if (!enderecoDeveSerBloqueado(tab.url, prefixos, hosts)) return
 
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: injetarPaginaBloqueada
-    })
-  } catch {
-    /* chrome://, Web Store, PDF viewer, etc. */
+    const blockedUrl = chrome.runtime.getURL('blocked.html') + '?url=' + encodeURIComponent(tab.url)
+    await chrome.tabs.update(tabId, { url: blockedUrl })
+  } catch (err) {
+    console.error('Erro ao redirecionar aba:', err)
   }
 }
 
@@ -155,19 +288,6 @@ async function revarrerTodasAbasComRegras() {
 async function talvezBloquearAba(tabId) {
   await atualizarEstadoDoApp()
   await bloquearAbaSeAplicavel(tabId)
-}
-
-function injetarPaginaBloqueada() {
-  if (document.documentElement?.dataset?.modoFocoBloqueado === '1') return
-  document.documentElement.dataset.modoFocoBloqueado = '1'
-  document.open()
-  document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Site bloqueado — Modo Foco</title></head><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;">
-  <div style="text-align:center;padding:2rem;max-width:26rem">
-    <h1 style="margin:0 0 0.75rem;font-size:1.35rem;font-weight:600">Site bloqueado</h1>
-    <p style="margin:0;font-size:0.95rem;line-height:1.5;opacity:0.92">O <strong>Modo Foco</strong> está em sessão de foco. Esta aba fica pausada até você pausar o temporizador ou sair da fase de foco no app.</p>
-    <p style="margin-top:1.25rem;font-size:0.8rem;opacity:0.65">Depois do foco, use atualizar (F5) para voltar ao site.</p>
-  </div></body></html>`)
-  document.close()
 }
 
 const filtroHttp = { url: [{ schemes: ['http', 'https'] }] }
@@ -220,5 +340,21 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   await revarrerTodasAbasComRegras()
 })
 
-void atualizarEstadoDoApp()
-conectarPushWebSocketFoco()
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type !== 'diagnosticoModoFoco') return false
+  const wsAberto =
+    socketWsAtual != null && /** @type {WebSocket} */ (socketWsAtual).readyState === WebSocket.OPEN
+  sendResponse({
+    wsConectado: wsAberto,
+    focoAtivo: Boolean(estadoCache.focoAtivo),
+    qtdHosts: Array.isArray(estadoCache.hosts) ? estadoCache.hosts.length : 0,
+    qtdPrefixos: Array.isArray(estadoCache.prefixosUrl) ? estadoCache.prefixosUrl.length : 0
+  })
+  return false
+})
+
+void (async () => {
+  await garantirConfigBridge()
+  void atualizarEstadoDoApp()
+  void conectarPushWebSocketFoco()
+})()
